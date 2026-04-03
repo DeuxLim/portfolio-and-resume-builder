@@ -36,16 +36,33 @@ type PortfolioRow = {
 	updated_at?: Date;
 };
 
-const parseJson = <T>(value: string | null, fallback: T): T => {
-	if (!value) {
+const parseJson = <T>(value: unknown, fallback: T): T => {
+	if (value === null || value === undefined) {
 		return fallback;
 	}
 
-	try {
-		return JSON.parse(value) as T;
-	} catch {
-		return fallback;
+	if (typeof value === "string") {
+		try {
+			return JSON.parse(value) as T;
+		} catch {
+			return fallback;
+		}
 	}
+
+	if (Buffer.isBuffer(value)) {
+		try {
+			return JSON.parse(value.toString("utf8")) as T;
+		} catch {
+			return fallback;
+		}
+	}
+
+	// mysql2 may return JSON columns as already-parsed arrays/objects.
+	if (typeof value === "object") {
+		return value as T;
+	}
+
+	return fallback;
 };
 
 export const serializePortfolio = (portfolio: EditablePortfolio) => ({
