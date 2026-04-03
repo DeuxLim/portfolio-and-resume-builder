@@ -1,36 +1,20 @@
-const experiences = [
-	{
-		role: "Full-Stack Developer",
-		fnName: "FullStackDeveloper",
-		company: "Orro Group",
-		period: "Mar 2023 — Present",
-		highlights: [
-			"Develop and maintain a large-scale enterprise platform for monitoring, ticketing, and workflow automation using Laravel, JavaScript/jQuery, MySQL, and Bootstrap",
-			"Lead integrations with external systems (Jira, ServiceNow, Freshservice), collaborating directly with client engineers to deliver reliable, real-time data synchronization",
-			"Build AI-powered features using Azure OpenAI to enhance automation and improve internal operational efficiency",
-			"Design and implement network automation solutions (device backups, remote command execution, monitoring) using SSH and REST APIs",
-			"Create event-driven automation workflows that reduce manual intervention and significantly improve incident response times",
-			"Consistently deliver bug fixes, performance optimizations, and UX improvements, contributing to system stability and scalability",
-		],
-	},
-	{
-		role: "Developer Intern",
-		fnName: "DeveloperIntern",
-		company: "Orro Group",
-		period: "Mar 2023 — Jun 2023",
-		highlights: [
-			"Supported development of a CRM system across frontend and backend",
-			"Fixed bugs and assisted in feature enhancements, improving system stability",
-			"Worked closely with senior developers, gaining hands-on experience in production workflows",
-		],
-	},
-];
+import { samplePortfolio } from "../../../../shared/defaults/portfolio";
+import type { ExperienceItem } from "../../../../shared/types/portfolio.types";
 
-export default function Experience() {
+export default function Experience({
+	items,
+}: {
+	items?: ExperienceItem[];
+}) {
+	const experiences = items ?? samplePortfolio.experiences;
 	// Build a flat list of lines with their content and line numbers
 	const lines: { content: React.ReactNode }[] = [];
 
 	experiences.forEach((exp, i) => {
+		const fnName =
+			exp.role.replace(/[^a-zA-Z0-9]+/g, " ").trim().replace(/\s+/g, "") ||
+			"Experience";
+
 		// comment line
 		lines.push({
 			content: (
@@ -45,7 +29,7 @@ export default function Experience() {
 				<span className="text-xs sm:text-[13px]">
 					<span className="text-(--app-subtle)">function </span>
 					<span className="font-semibold text-(--app-text)">
-						{exp.fnName}
+						{fnName}
 					</span>
 					<span className="text-(--app-subtle)">() {"{"}</span>
 				</span>

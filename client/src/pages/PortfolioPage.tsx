@@ -10,20 +10,21 @@ import { samplePortfolio } from "../../../shared/defaults/portfolio";
 export default function PortfolioPage() {
 	const params = useParams();
 	const username = params.username ?? "";
+	const normalizedUsername = username.trim().toLowerCase();
 
 	const portfolioQuery = useQuery({
-		queryKey: ["public-portfolio", username],
+		queryKey: ["public-portfolio", normalizedUsername],
 		queryFn: async () => {
 			const { data } = await api.get<{ portfolio: PublicPortfolio }>(
-				`/portfolios/${username}`,
+				`/portfolios/${normalizedUsername}`,
 			);
 			return data.portfolio;
 		},
-		enabled: Boolean(username),
+		enabled: Boolean(normalizedUsername),
 	});
 
 	const fallbackPortfolio =
-		username === samplePortfolio.username ? samplePortfolio : null;
+		normalizedUsername === samplePortfolio.username ? samplePortfolio : null;
 	const resolvedPortfolio = portfolioQuery.data ?? fallbackPortfolio;
 
 	if (portfolioQuery.isLoading && !fallbackPortfolio) {

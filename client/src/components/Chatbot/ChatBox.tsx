@@ -4,11 +4,11 @@ import ChatIntro from "@/components/Chatbot/ChatIntro";
 import { useEffect, useState, type ReactNode } from "react";
 import { useChatStream } from "@/hooks/useChatStream";
 import { ChatThinkingLoader } from "./ChatThinkingLoader";
-import me from "@/assets/me.jpeg";
 import { HiMiniPaperAirplane } from "react-icons/hi2";
 import { motion } from "motion/react";
 import usePrefersReducedMotion from "@/hooks/usePrefersReducedMotion";
 import ReactMarkdown from "react-markdown";
+import { getAvatarUrl } from "@/lib/assets";
 
 export default function ChatBox({
 	username,
@@ -24,7 +24,7 @@ export default function ChatBox({
 		useChatStream();
 	const [input, setInput] = useState("");
 	const prefersReducedMotion = usePrefersReducedMotion();
-	const avatar = avatarUrl || me;
+	const avatar = getAvatarUrl(avatarUrl);
 
 	const handleSend = async () => {
 		if (!input.trim()) return;

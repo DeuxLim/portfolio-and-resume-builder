@@ -1,22 +1,35 @@
 import { createBrowserRouter } from "react-router";
 import PortfolioLayout from "./layouts/PortfolioLayout";
+import AppLayout from "./layouts/AppLayout";
 import LandingPage from "@/pages/LandingPage";
 import LoginPage from "@/pages/LoginPage";
 import SignupPage from "@/pages/SignupPage";
 import DashboardPage from "@/pages/DashboardPage";
 import PortfolioPage from "@/pages/PortfolioPage";
+import PortfolioEditorPage from "@/pages/PortfolioEditorPage";
+import SamplePortfolioPage from "@/pages/SamplePortfolioPage";
 
 const routes = createBrowserRouter([
 	{
 		path: "/",
-		element: <PortfolioLayout />,
+		element: <AppLayout />,
 		children: [
 			{ index: true, Component: LandingPage },
 			{ path: "login", Component: LoginPage },
 			{ path: "signup", Component: SignupPage },
 			{ path: "dashboard", Component: DashboardPage },
-			{ path: ":username", Component: PortfolioPage },
+			{ path: "dashboard/edit", Component: PortfolioEditorPage },
 		],
+	},
+	{
+		path: "/sample",
+		element: <PortfolioLayout />,
+		children: [{ index: true, Component: SamplePortfolioPage }],
+	},
+	{
+		path: "/:username",
+		element: <PortfolioLayout />,
+		children: [{ index: true, Component: PortfolioPage }],
 	},
 ]);
 

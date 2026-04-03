@@ -1,10 +1,23 @@
 import type { Request, Response } from "express";
 import { randomUUID } from "crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { buildStarterPortfolio } from "../../shared/defaults/portfolio.js";
 import type { EditablePortfolio } from "../../shared/types/portfolio.types.js";
 import {
+	getUploadsRoot,
+	toPublicAvatarPath,
+	toPublicCoverPath,
+} from "../lib/uploads.js";
+import {
+	activatePortfolioVersionByUserId,
+	createPortfolioVersionByUserId,
+	deletePortfolioVersionByUserId,
 	getEditablePortfolioByUserId,
 	getPortfolioByUsername,
+	listPortfolioVersionsByUserId,
+	updatePortfolioAvatarByUserId,
+	updatePortfolioCoverByUserId,
 	updatePortfolioByUserId,
 } from "../services/portfolio.service.js";
 
@@ -119,10 +132,150 @@ const updateMyPortfolio = async (req: Request, res: Response) => {
 	res.json({ portfolio });
 };
 
+const uploadMyAvatar = async (req: Request, res: Response) => {
+	if (!req.file) {
+		res.status(400).json({ message: "Avatar file is required." });
+		return;
+	}
+
+	const avatarPath = toPublicAvatarPath(req.file.filename);
+	const updated = await updatePortfolioAvatarByUserId(
+		req.auth!.userId,
+		avatarPath,
+	);
+
+	if (!updated) {
+		res.status(404).json({ message: "Portfolio not found." });
+		return;
+	}
+
+	const previousAvatar = (req.body?.previousAvatarUrl ?? "").trim();
+	const normalizedUploadPath = avatarPath.replace(/^\//, "");
+	const normalizedPreviousPath = previousAvatar.replace(/^\//, "");
+	const shouldDeletePrevious =
+		normalizedPreviousPath.startsWith("uploads/avatars/") &&
+		normalizedPreviousPath !== normalizedUploadPath;
+
+	if (shouldDeletePrevious) {
+		try {
+			await fs.unlink(path.join(getUploadsRoot(), normalizedPreviousPath.replace(/^uploads\//, "")));
+		} catch {
+			// Best-effort cleanup only.
+		}
+	}
+
+	res.status(201).json({ avatarUrl: updated.avatarUrl, portfolio: updated });
+};
+
+const uploadMyCover = async (req: Request, res: Response) => {
+	if (!req.file) {
+		res.status(400).json({ message: "Cover file is required." });
+		return;
+	}
+
+	const coverPath = toPublicCoverPath(req.file.filename);
+	const updated = await updatePortfolioCoverByUserId(req.auth!.userId, coverPath);
+
+	if (!updated) {
+		res.status(404).json({ message: "Portfolio not found." });
+		return;
+	}
+
+	const previousCover = (req.body?.previousCoverUrl ?? "").trim();
+	const normalizedUploadPath = coverPath.replace(/^\//, "");
+	const normalizedPreviousPath = previousCover.replace(/^\//, "");
+	const shouldDeletePrevious =
+		normalizedPreviousPath.startsWith("uploads/covers/") &&
+		normalizedPreviousPath !== normalizedUploadPath;
+
+	if (shouldDeletePrevious) {
+		try {
+			await fs.unlink(
+				path.join(
+					getUploadsRoot(),
+					normalizedPreviousPath.replace(/^uploads\//, ""),
+				),
+			);
+		} catch {
+			// Best-effort cleanup only.
+		}
+	}
+
+	res.status(201).json({ coverUrl: updated.coverUrl, portfolio: updated });
+};
+
+const listMyPortfolioVersions = async (req: Request, res: Response) => {
+	const versions = await listPortfolioVersionsByUserId(req.auth!.userId);
+	res.json({ versions });
+};
+
+const createMyPortfolioVersion = async (req: Request, res: Response) => {
+	const name = String(req.body?.name ?? "");
+	const versions = await createPortfolioVersionByUserId(req.auth!.userId, {
+		name,
+	});
+	res.status(201).json({ versions });
+};
+
+const activateMyPortfolioVersion = async (req: Request, res: Response) => {
+	const versionId = Number(req.params.versionId);
+
+	if (!Number.isFinite(versionId) || versionId <= 0) {
+		res.status(400).json({ message: "Invalid version id." });
+		return;
+	}
+
+	const portfolio = await activatePortfolioVersionByUserId(
+		req.auth!.userId,
+		versionId,
+	);
+
+	if (!portfolio) {
+		res.status(404).json({ message: "Version not found." });
+		return;
+	}
+
+	res.json({ portfolio });
+};
+
+const deleteMyPortfolioVersion = async (req: Request, res: Response) => {
+	const versionId = Number(req.params.versionId);
+
+	if (!Number.isFinite(versionId) || versionId <= 0) {
+		res.status(400).json({ message: "Invalid version id." });
+		return;
+	}
+
+	const result = await deletePortfolioVersionByUserId(
+		req.auth!.userId,
+		versionId,
+	);
+
+	if (result === "not_found") {
+		res.status(404).json({ message: "Version not found." });
+		return;
+	}
+
+	if (result === "active_version") {
+		res.status(409).json({
+			message: "Active version cannot be deleted. Set another version live first.",
+		});
+		return;
+	}
+
+	res.status(204).send();
+};
+
 const PortfolioController = {
 	getPublicPortfolio,
 	getMyPortfolio,
 	updateMyPortfolio,
+	uploadMyAvatar,
+	uploadMyCover,
+	listMyPortfolioVersions,
+	createMyPortfolioVersion,
+	activateMyPortfolioVersion,
+	deleteMyPortfolioVersion,
 };
 
 export default PortfolioController;

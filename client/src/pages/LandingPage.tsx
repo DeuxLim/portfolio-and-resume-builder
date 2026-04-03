@@ -1,120 +1,136 @@
 import { Link } from "react-router";
-import { samplePortfolio } from "../../../shared/defaults/portfolio";
-import ThemeToggleButton from "@/components/ThemeToggleButton";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { ArrowRight, CopyCheck, LayoutTemplate, Rocket, Sparkles } from "lucide-react";
+import { cn } from "@/lib/utils";
+import PortfolioMiniPreview from "@/components/Landing/PortfolioMiniPreview";
 
-const features = [
-	"Create an account and get your own public portfolio URL",
-	"Edit your profile, work history, projects, stack, and custom sections",
-	"Keep the same minimal resume-style layout across every portfolio",
-	"Use the app-wide Gemini key or save your own key in settings",
+const pillars = [
+	{
+		title: "Fast Launch",
+		description: "Go from signup to a polished developer portfolio link in minutes.",
+		icon: Rocket,
+	},
+	{
+		title: "Developer-First Editor",
+		description: "Guided sections for projects, experience, skills, and links recruiters actually scan.",
+		icon: LayoutTemplate,
+	},
+	{
+		title: "Portfolio Versions",
+		description: "Keep drafts for different job targets, then publish the one you want live.",
+		icon: CopyCheck,
+	},
 ];
 
 export default function LandingPage() {
 	return (
-		<main className="space-y-4">
-			<section className="app-card p-4 sm:p-6 md:p-8">
-				<div className="flex items-start justify-between gap-4">
-					<div className="space-y-4 max-w-3xl">
-						<div className="text-xs uppercase tracking-[0.24em] text-(--app-subtle)">
-							Developer Portfolio Builder
+		<main className="space-y-5">
+			<section className="grid gap-4 lg:grid-cols-[1.15fr_.85fr]">
+				<Card className="border-border/70 bg-background/80 shadow-none backdrop-blur">
+					<CardHeader className="space-y-4">
+						<Badge variant="secondary" className="w-fit">
+							<Sparkles className="mr-1 size-3.5" />
+							Developer Portfolio Generator
+						</Badge>
+						<CardTitle className="max-w-3xl text-3xl tracking-tight sm:text-5xl">
+							Build a developer portfolio that helps you get interviews.
+						</CardTitle>
+						<CardDescription className="max-w-2xl text-sm sm:text-base">
+							Write once, update anytime, and publish to one permanent link.
+							Designed for solo developers who want a clean, modern portfolio fast.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="flex flex-wrap gap-2">
+						<Link to="/signup" className={buttonVariants({ size: "lg" })}>
+							Create account
+						</Link>
+						<Link
+							to="/sample"
+							className={buttonVariants({ size: "lg", variant: "outline" })}
+						>
+							View sample output
+						</Link>
+						<Link
+							to="/login"
+							className={buttonVariants({ size: "lg", variant: "ghost" })}
+						>
+							Log in
+						</Link>
+					</CardContent>
+				</Card>
+
+				<Card className="border-border/70 bg-gradient-to-br from-sky-500/10 via-emerald-500/5 to-transparent shadow-none">
+					<CardHeader>
+						<CardTitle className="text-xl">See the output</CardTitle>
+						<CardDescription>
+							This is a miniature preview of the generated portfolio style.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-3">
+						<PortfolioMiniPreview />
+						<div className="rounded-md border bg-background/90 px-3 py-2 text-sm font-medium">
+							your-domain.com/your-username
 						</div>
-						<h1 className="text-3xl sm:text-5xl font-semibold tracking-tight text-balance">
-							Turn this site into a portfolio builder for any developer.
-						</h1>
-						<p className="text-sm sm:text-base text-(--app-muted) max-w-2xl">
-							Developers can sign up, fill out their information, edit sections,
-							and publish a clean portfolio that keeps the same minimal vibe as
-							your personal site.
-						</p>
-						<div className="flex flex-wrap gap-2">
-							<Link to="/signup" className="app-chip px-4 py-2 font-medium">
-								Create account
-							</Link>
-							<Link to="/login" className="app-chip px-4 py-2 font-medium">
-								Log in
-							</Link>
-							<Link
-								to={`/${samplePortfolio.username}`}
-								className="app-chip px-4 py-2 font-medium"
-							>
-								View sample portfolio
-							</Link>
+						<div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+							Your public link stays stable while you switch versions.
 						</div>
-					</div>
-					<ThemeToggleButton />
-				</div>
+						<Link
+							to="/signup"
+							className={cn(buttonVariants({ variant: "outline" }), "w-full")}
+						>
+							Start building <ArrowRight className="size-4" />
+						</Link>
+					</CardContent>
+				</Card>
 			</section>
 
-			<section className="grid grid-cols-1 md:grid-cols-3 gap-4">
-				<div className="app-card p-4 sm:p-5 md:col-span-2">
-					<div className="text-base sm:text-lg font-bold">How it works</div>
-					<div className="mt-4 grid gap-3 text-sm text-(--app-muted)">
-						<div className="app-chip p-3">
-							<span className="text-(--app-text) font-medium">01.</span> Sign up
-							with your email, username, and password.
-						</div>
-						<div className="app-chip p-3">
-							<span className="text-(--app-text) font-medium">02.</span> Edit
-							your profile, timeline, experience, projects, and stack.
-						</div>
-						<div className="app-chip p-3">
-							<span className="text-(--app-text) font-medium">03.</span> Share
-							your public page at <code>/your-username</code>.
-						</div>
-					</div>
-				</div>
-
-				<div className="app-card p-4 sm:p-5">
-					<div className="text-base sm:text-lg font-bold">What stays simple</div>
-					<div className="mt-4 space-y-2 text-sm text-(--app-muted)">
-						{features.map((feature) => (
-							<div key={feature} className="app-chip p-3">
-								{feature}
-							</div>
-						))}
-					</div>
-				</div>
+			<section className="grid grid-cols-1 gap-4 md:grid-cols-3">
+				{pillars.map((pillar) => (
+					<Card key={pillar.title} className="border-border/70 bg-background/75 shadow-none">
+						<CardHeader className="gap-2">
+							<pillar.icon className="size-4 text-muted-foreground" />
+							<CardTitle className="text-base">{pillar.title}</CardTitle>
+							<CardDescription>{pillar.description}</CardDescription>
+						</CardHeader>
+					</Card>
+				))}
 			</section>
 
-			<section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-				<div className="app-card p-4 sm:p-5">
-					<div className="text-base sm:text-lg font-bold">Portfolio preview</div>
-					<div className="mt-4 space-y-3 text-sm">
-						<div className="app-chip p-3">
-							<div className="font-semibold">{samplePortfolio.fullName}</div>
-							<div className="text-(--app-muted)">{samplePortfolio.headline}</div>
-						</div>
-						<div className="app-chip p-3 text-(--app-muted)">
-							{samplePortfolio.about[0]}
-						</div>
-						<div className="grid grid-cols-2 gap-2">
-							{samplePortfolio.projects.slice(0, 2).map((project) => (
-								<div key={project.id} className="app-chip p-3">
-									<div className="font-medium text-sm">{project.name}</div>
-									<div className="text-xs text-(--app-muted)">
-										{project.description}
-									</div>
-								</div>
-							))}
-						</div>
-					</div>
-				</div>
-
-				<div className="app-card p-4 sm:p-5">
-					<div className="text-base sm:text-lg font-bold">Public URL pattern</div>
-					<div className="mt-4 space-y-3 text-sm text-(--app-muted)">
-						<div className="app-chip p-3">
-							<code>your-domain.vercel.app/deuxlim</code>
-						</div>
-						<div className="app-chip p-3">
-							<code>your-domain.vercel.app/another-dev</code>
-						</div>
-						<p>
-							You still keep your personal portfolio style, but the app becomes a
-							shared builder that can host multiple developers.
-						</p>
-					</div>
-				</div>
+			<section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+				<Card className="border-border/70 shadow-none">
+					<CardHeader>
+						<CardTitle className="text-lg">How it works</CardTitle>
+					</CardHeader>
+					<CardContent className="space-y-3 text-sm">
+						<div>Create an account and start your personal developer profile.</div>
+						<Separator />
+						<div>Fill guided sections for intro, experience, projects, and stack.</div>
+						<Separator />
+						<div>Save multiple versions and choose which one is publicly live.</div>
+					</CardContent>
+				</Card>
+				<Card className="border-border/70 shadow-none">
+					<CardHeader>
+						<CardTitle className="text-lg">Why developers use this</CardTitle>
+						<CardDescription>
+							Clean public output + practical editing flow.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-2 text-sm text-muted-foreground">
+						<div className="rounded-md border px-3 py-2">Portfolio output stays consistent and professional.</div>
+						<div className="rounded-md border px-3 py-2">Update content without rebuilding your site each time.</div>
+						<div className="rounded-md border px-3 py-2">Easy control of what recruiters see on your live link.</div>
+					</CardContent>
+				</Card>
 			</section>
 		</main>
 	);

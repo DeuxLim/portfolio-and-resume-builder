@@ -73,3 +73,11 @@ export type SessionUser = {
 	username: string;
 	fullName: string;
 };
+
+export type PortfolioVersionSummary = {
+	id: number;
+	name: string;
+	isActive: boolean;
+	createdAt?: string;
+	updatedAt?: string;
+};

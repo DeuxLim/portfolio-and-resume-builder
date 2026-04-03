@@ -2,9 +2,14 @@ import { GitHubCalendar } from "react-github-calendar";
 import useTheme from "@/context/Theme/useTheme";
 import { useEffect, useState } from "react";
 
-export default function Heatmap() {
+export default function Heatmap({ username }: { username?: string }) {
 	const { isDarkMode } = useTheme();
 	const [isCompact, setIsCompact] = useState(false);
+	const githubUsername = username?.trim() ?? "";
+
+	if (!githubUsername) {
+		return null;
+	}
 
 	useEffect(() => {
 		const mediaQuery = window.matchMedia?.("(max-width: 640px)");
@@ -23,7 +28,7 @@ export default function Heatmap() {
 
 			<div className="w-full overflow-x-auto">
 				<GitHubCalendar
-					username="deuxlim"
+					username={githubUsername}
 					blockSize={isCompact ? 10 : 12}
 					blockMargin={isCompact ? 2 : 3}
 					fontSize={isCompact ? 11 : 13}

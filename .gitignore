@@ -26,6 +26,7 @@ dist-ssr
 #backend
 # Dependencies
 node_modules/
+server/uploads/
 
 # Env files (backend + frontend)
 .env

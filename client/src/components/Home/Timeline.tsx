@@ -1,38 +1,17 @@
-const experiences = [
-	{
-		year: "2026",
-		position: "Full Stack Developer",
-		company: "Orro Group",
-	},
-	{
-		year: "2023",
-		position: "Frontend Developer Intern",
-		company: "Orro Group",
-	},
-	{
-		year: "2023",
-		position: "BS Information Technology",
-		company: "La Consolacion University",
-		honor: "Cum Laude",
-	},
-	{
-		year: "2020",
-		position: "Hello World!",
-		company: "",
-	},
-];
+import { samplePortfolio } from "../../../../shared/defaults/portfolio";
+import type { TimelineItem } from "../../../../shared/types/portfolio.types";
 
-type Experience = (typeof experiences)[number];
+export default function Timeline({ items }: { items?: TimelineItem[] }) {
+	const timeline = items ?? samplePortfolio.timeline;
 
-export default function Timeline() {
 	return (
 		<div className="space-y-4">
 			<div className="text-base sm:text-lg font-bold">Timeline</div>
 			<div className="font-sans">
 				<div className="flex flex-col gap-2">
-					{experiences.map((exp: Experience, index: number) => (
+					{timeline.map((exp, index) => (
 						<div
-							key={index}
+							key={exp.id || `${exp.year}-${exp.position}`}
 							className="flex flex-row items-start gap-2.5"
 						>
 							{/* Dot + Line */}
@@ -44,7 +23,7 @@ export default function Timeline() {
 											: "bg-(--app-border)"
 									}`}
 								/>
-								{index < experiences.length - 1 && (
+								{index < timeline.length - 1 && (
 									<div className="w-px flex-1 bg-(--app-border) mt-1" />
 								)}
 							</div>
@@ -62,11 +41,11 @@ export default function Timeline() {
 								</div>
 
 								{/* Company + Honor */}
-								{(exp.company || exp.honor) && (
+								{(exp.company || exp.note) && (
 									<div className="text-xs text-(--app-muted) mt-1 flex items-start gap-2">
 										<div className="flex-1 min-w-0">
-											{exp.honor && (
-												<span>{exp.honor} · </span>
+											{exp.note && (
+												<span>{exp.note} · </span>
 											)}
 											<span>{exp.company}</span>
 										</div>

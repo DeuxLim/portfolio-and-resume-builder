@@ -1,8 +1,12 @@
-export default function Footer() {
+import { samplePortfolio } from "../../../../shared/defaults/portfolio";
+
+export default function Footer({ fullName }: { fullName?: string }) {
+	const name = fullName ?? samplePortfolio.fullName;
+
 	return (
 		<div>
 			<div className="text-sm font-light">
-				© 2026 Deux Lim. All rights reserved.
+				© {new Date().getFullYear()} {name}. All rights reserved.
 			</div>
 		</div>
 	);

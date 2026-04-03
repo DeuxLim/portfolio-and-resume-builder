@@ -7,9 +7,16 @@ import TechStack from "@/components/Home/TechStack";
 import Experience from "./Experience";
 import { motion } from "motion/react";
 import usePrefersReducedMotion from "@/hooks/usePrefersReducedMotion";
+import type { PublicPortfolio } from "../../../../shared/types/portfolio.types";
 
-export default function Content() {
+export default function Content({
+	portfolio,
+}: {
+	portfolio?: PublicPortfolio;
+}) {
 	const prefersReducedMotion = usePrefersReducedMotion();
+	const data = portfolio;
+	const hasGithubHeatmap = Boolean(data?.githubUsername?.trim());
 
 	return (
 		<div className="grid grid-cols-4 md:grid-cols-12 gap-3 sm:gap-4">
@@ -24,7 +31,7 @@ export default function Content() {
 				}
 				className="col-span-4 md:col-span-8 app-card p-2.5 sm:p-4"
 			>
-				<About />
+				<About paragraphs={data?.about} />
 			</motion.div>
 
 			{/* Experience Timeline */}
@@ -38,7 +45,7 @@ export default function Content() {
 				}
 				className="col-span-4 md:col-span-4 row-span-1 app-card p-2.5 sm:p-4"
 			>
-				<Timeline />
+				<Timeline items={data?.timeline} />
 			</motion.div>
 
 			{/* Experience */}
@@ -52,7 +59,7 @@ export default function Content() {
 				}
 				className="col-span-4 md:col-span-8 app-card p-2.5 sm:p-4"
 			>
-				<Experience />
+				<Experience items={data?.experiences} />
 			</motion.div>
 
 			{/* Tech Stack */}
@@ -66,7 +73,7 @@ export default function Content() {
 				}
 				className="col-span-4 md:col-span-4 row-span-2 app-card p-2.5 sm:p-4"
 			>
-				<TechStack />
+				<TechStack categories={data?.techCategories} />
 			</motion.div>
 
 			{/* Projects */}
@@ -80,22 +87,45 @@ export default function Content() {
 				}
 				className="col-span-4 md:col-span-8 app-card p-2.5 sm:p-4"
 			>
-				<Projects />
+				<Projects items={data?.projects} />
 			</motion.div>
 
 			{/* Coding Heat Map */}
-			<motion.div
-				initial={prefersReducedMotion ? false : { opacity: 0, x: -18 }}
-				animate={prefersReducedMotion ? undefined : { opacity: 1, x: 0 }}
-				transition={
-					prefersReducedMotion
-						? undefined
-						: { duration: 0.55, ease: [0.16, 1, 0.3, 1] }
-				}
-				className="col-span-4 md:col-span-6 app-card p-2.5 sm:p-4"
-			>
-				<Heatmap />
-			</motion.div>
+			{hasGithubHeatmap && (
+				<motion.div
+					initial={prefersReducedMotion ? false : { opacity: 0, x: -18 }}
+					animate={prefersReducedMotion ? undefined : { opacity: 1, x: 0 }}
+					transition={
+						prefersReducedMotion
+							? undefined
+							: { duration: 0.55, ease: [0.16, 1, 0.3, 1] }
+					}
+					className="col-span-4 md:col-span-6 app-card p-2.5 sm:p-4"
+				>
+					<Heatmap username={data?.githubUsername} />
+				</motion.div>
+			)}
+
+			{data?.customSections?.map((section) => (
+				<motion.div
+					key={section.id}
+					initial={prefersReducedMotion ? false : { opacity: 0, y: 18 }}
+					animate={prefersReducedMotion ? undefined : { opacity: 1, y: 0 }}
+					transition={
+						prefersReducedMotion
+							? undefined
+							: { duration: 0.55, ease: [0.16, 1, 0.3, 1] }
+					}
+					className="col-span-4 md:col-span-6 app-card p-2.5 sm:p-4"
+				>
+					<div className="space-y-3">
+						<div className="text-base sm:text-lg font-bold">{section.title}</div>
+						<p className="text-sm text-(--app-muted) whitespace-pre-wrap">
+							{section.body}
+						</p>
+					</div>
+				</motion.div>
+			))}
 
 			{/* Footer */}
 			<motion.div
@@ -108,7 +138,7 @@ export default function Content() {
 				}
 				className="md:col-span-12 col-span-4 border-t border-(--app-border) p-2.5 sm:p-4 flex items-center justify-center mt-3 sm:mt-4 h-16 sm:h-24"
 			>
-				<Footer />
+				<Footer fullName={data?.fullName} />
 			</motion.div>
 		</div>
 	);

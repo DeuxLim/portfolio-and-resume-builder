@@ -1,8 +1,8 @@
-import me from "@/assets/me.jpeg";
 import { IoCloseSharp } from "react-icons/io5";
 import useChat from "@/context/Chat/useChat";
 import { motion } from "motion/react";
 import usePrefersReducedMotion from "@/hooks/usePrefersReducedMotion";
+import { getAvatarUrl } from "@/lib/assets";
 
 export default function ChatHead({
 	displayName,
@@ -13,7 +13,7 @@ export default function ChatHead({
 }) {
 	const { setIsChatOpen } = useChat();
 	const prefersReducedMotion = usePrefersReducedMotion();
-	const avatar = avatarUrl || me;
+	const avatar = getAvatarUrl(avatarUrl);
 
 	return (
 		<motion.button

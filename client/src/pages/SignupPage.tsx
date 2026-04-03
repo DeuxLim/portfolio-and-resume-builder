@@ -3,6 +3,19 @@ import { sessionQueryKey } from "@/hooks/useSession";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router";
+import { Button } from "@/components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { Rocket } from "lucide-react";
 
 export default function SignupPage() {
 	const navigate = useNavigate();
@@ -45,25 +58,48 @@ export default function SignupPage() {
 	});
 
 	return (
-		<main className="max-w-xl mx-auto">
-			<section className="app-card p-4 sm:p-6">
-				<div className="space-y-2">
-					<div className="text-xs uppercase tracking-[0.24em] text-(--app-subtle)">
-						Create account
+		<main className="mx-auto grid max-w-5xl gap-4 lg:grid-cols-[1fr_1.1fr]">
+			<Card className="border-border/70 bg-gradient-to-br from-violet-500/10 via-sky-500/8 to-transparent shadow-none">
+				<CardHeader className="space-y-3">
+					<Badge variant="secondary" className="w-fit">
+						<Rocket className="mr-1 size-3.5" />
+						Start Fast
+					</Badge>
+					<CardTitle className="text-2xl">Create your developer portfolio</CardTitle>
+					<CardDescription>
+						Your username becomes your public URL. You can edit and relaunch anytime.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-3 text-sm text-muted-foreground">
+					<div className="rounded-md border bg-background/80 px-3 py-2">
+						Reserve your profile link.
 					</div>
-					<h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-						Start your own developer portfolio
-					</h1>
-					<p className="text-sm text-(--app-muted)">
-						Your username becomes your public portfolio URL.
-					</p>
-				</div>
+					<div className="rounded-md border bg-background/80 px-3 py-2">
+						Use the guided editor flow.
+					</div>
+					<div className="rounded-md border bg-background/80 px-3 py-2">
+						Manage versions without breaking your live page.
+					</div>
+				</CardContent>
+			</Card>
 
-				<div className="mt-6 grid gap-4">
-					<label className="block space-y-2">
-						<span className="text-sm font-medium">Full name</span>
-						<input
+			<Card className="border-border/70 shadow-none">
+				<CardHeader className="space-y-3">
+					<Badge variant="secondary" className="w-fit">
+						Create Account
+					</Badge>
+					<CardTitle className="text-2xl sm:text-3xl">Get started</CardTitle>
+					<CardDescription>
+						Fill out your basics and publish your first version.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-4">
+					<div className="space-y-2">
+						<Label htmlFor="fullName">Full name</Label>
+						<Input
+							id="fullName"
 							type="text"
+							placeholder="Maria Angela Santos"
 							value={form.fullName}
 							onChange={(event) =>
 								setForm((current) => ({
@@ -71,14 +107,15 @@ export default function SignupPage() {
 									fullName: event.target.value,
 								}))
 							}
-							className="w-full h-11 px-3 bg-(--app-surface-2) border border-(--app-border)"
 						/>
-					</label>
+					</div>
 
-					<label className="block space-y-2">
-						<span className="text-sm font-medium">Username</span>
-						<input
+					<div className="space-y-2">
+						<Label htmlFor="username">Username</Label>
+						<Input
+							id="username"
 							type="text"
+							placeholder="maria-santos-dev"
 							value={form.username}
 							onChange={(event) =>
 								setForm((current) => ({
@@ -86,14 +123,15 @@ export default function SignupPage() {
 									username: event.target.value,
 								}))
 							}
-							className="w-full h-11 px-3 bg-(--app-surface-2) border border-(--app-border)"
 						/>
-					</label>
+					</div>
 
-					<label className="block space-y-2">
-						<span className="text-sm font-medium">Email</span>
-						<input
+					<div className="space-y-2">
+						<Label htmlFor="email">Email</Label>
+						<Input
+							id="email"
 							type="email"
+							placeholder="you@example.com"
 							value={form.email}
 							onChange={(event) =>
 								setForm((current) => ({
@@ -101,14 +139,15 @@ export default function SignupPage() {
 									email: event.target.value,
 								}))
 							}
-							className="w-full h-11 px-3 bg-(--app-surface-2) border border-(--app-border)"
 						/>
-					</label>
+					</div>
 
-					<label className="block space-y-2">
-						<span className="text-sm font-medium">Password</span>
-						<input
+					<div className="space-y-2">
+						<Label htmlFor="password">Password</Label>
+						<Input
+							id="password"
 							type="password"
+							placeholder="At least 8 characters"
 							value={form.password}
 							onChange={(event) =>
 								setForm((current) => ({
@@ -116,32 +155,36 @@ export default function SignupPage() {
 									password: event.target.value,
 								}))
 							}
-							className="w-full h-11 px-3 bg-(--app-surface-2) border border-(--app-border)"
 						/>
-					</label>
+					</div>
 
-					{error && <div className="text-sm text-red-500">{error}</div>}
+					{error && (
+						<div className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+							{error}
+						</div>
+					)}
 
-					<button
+					<Button
 						type="button"
 						onClick={() => {
 							setError("");
 							signupMutation.mutate();
 						}}
 						disabled={signupMutation.isPending}
-						className="app-chip px-4 py-2 font-medium disabled:opacity-60"
+						className="w-full"
 					>
 						{signupMutation.isPending ? "Creating..." : "Create account"}
-					</button>
+					</Button>
 
-					<div className="text-sm text-(--app-muted)">
+					<Separator />
+					<div className="text-sm text-muted-foreground">
 						Already have an account?{" "}
-						<Link to="/login" className="underline">
+						<Link to="/login" className="font-medium text-foreground underline">
 							Log in
 						</Link>
 					</div>
-				</div>
-			</section>
+				</CardContent>
+			</Card>
 		</main>
 	);
 }
