@@ -69,8 +69,16 @@ export default function ResumeBuilderPage() {
 	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
 	const [resume, setResume] = useState<ResumeRecord | null>(null);
-	const [serverValidation, setServerValidation] = useState<ResumeValidationResult | null>(null);
-	const [status, setStatus] = useState("");
+	const [toast, setToast] = useState<{
+		type: "success" | "error";
+		message: string;
+	} | null>(null);
+
+	useEffect(() => {
+		if (!toast) return;
+		const timeoutId = window.setTimeout(() => setToast(null), 2400);
+		return () => window.clearTimeout(timeoutId);
+	}, [toast]);
 
 	useEffect(() => {
 		if (sessionQuery.isSuccess && !sessionQuery.data?.user) {
@@ -92,7 +100,6 @@ export default function ResumeBuilderPage() {
 	useEffect(() => {
 		if (!resumeQuery.data) return;
 		setResume(cloneResume(resumeQuery.data.resume));
-		setServerValidation(resumeQuery.data.validation);
 	}, [resumeQuery.data]);
 
 	const liveValidation = useMemo(
@@ -134,19 +141,24 @@ export default function ResumeBuilderPage() {
 			return data;
 		},
 		onSuccess: async (data) => {
-			setStatus("Resume saved.");
+			setToast({ type: "success", message: "Resume saved." });
 			setResume(cloneResume(data.resume));
-			setServerValidation(data.validation);
 			await queryClient.invalidateQueries({ queryKey: ["my-resume"] });
+		},
+		onError: () => {
+			setToast({ type: "error", message: "Failed to save resume." });
 		},
 	});
 
 	const syncMutation = useMutation({
 		mutationFn: async () => api.post("/resumes/me/sync-portfolio"),
 		onSuccess: async () => {
-			setStatus("Resume synced to portfolio.");
+			setToast({ type: "success", message: "Resume synced to portfolio." });
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio"] });
 			await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
+		},
+		onError: () => {
+			setToast({ type: "error", message: "Failed to sync resume to portfolio." });
 		},
 	});
 
@@ -241,87 +253,111 @@ export default function ResumeBuilderPage() {
 
 	return (
 		<main className="space-y-4">
+			{toast ? (
+				<div className="fixed right-4 top-4 z-50">
+					<div
+						className={
+							toast.type === "error"
+								? "rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700 shadow-lg"
+								: "rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700 shadow-lg"
+						}
+					>
+						{toast.message}
+					</div>
+				</div>
+			) : null}
 			<Card className="border-border/70 shadow-none">
-				<CardHeader className="space-y-3 md:flex-row md:items-center md:justify-between">
+				<CardHeader className="space-y-2 pb-3">
 					<div>
 						<CardTitle className="text-2xl">Resume Builder</CardTitle>
 						<CardDescription>
 							ATS-first layout, dynamic sections, and PDF export.
 						</CardDescription>
 					</div>
-					<div className="flex flex-wrap gap-2">
-						<Button
-							type="button"
-							variant="outline"
-							onClick={() => syncMutation.mutate()}
-							disabled={syncMutation.isPending}
-						>
-							<WandSparkles className="size-4" />
-							{syncMutation.isPending ? "Syncing..." : "Sync to Portfolio"}
-						</Button>
-						<Button
-							type="button"
-							onClick={() => saveMutation.mutate()}
-							disabled={saveMutation.isPending}
-						>
-							<Save className="size-4" />
-							{saveMutation.isPending ? "Saving..." : "Save Resume"}
-						</Button>
-						<a href={pdfDownloadHref}>
-							<Button type="button" variant="secondary">
-								<Download className="size-4" />
-								Download PDF
-							</Button>
-						</a>
-					</div>
 				</CardHeader>
-				<CardContent className="space-y-3 text-sm">
-					<div className="flex flex-wrap items-center gap-2">
-						<Label htmlFor="resume-template-key" className="text-xs text-muted-foreground">
-							PDF template
-						</Label>
-						<select
-							id="resume-template-key"
-							className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-							value={resume.templateKey}
-							onChange={(event) =>
-								setResume((current) =>
-									current
-										? {
-												...current,
-												templateKey:
-													event.target.value === "harvard_classic_v1"
-														? "harvard_classic_v1"
-														: "ats_classic_v1",
-										  }
-										: current,
-								)
-							}
-						>
-							{resumeTemplateOptions.map((option) => (
-								<option key={option.key} value={option.key}>
-									{option.label}
-								</option>
-							))}
-						</select>
+				<CardContent className="space-y-4 text-sm">
+					<div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+						<div className="space-y-2">
+							<Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+								Actions
+							</Label>
+							<div className="flex flex-wrap gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => syncMutation.mutate()}
+									disabled={syncMutation.isPending}
+								>
+									<WandSparkles className="size-4" />
+									{syncMutation.isPending ? "Syncing..." : "Sync to Portfolio"}
+								</Button>
+								<Button
+									type="button"
+									onClick={() => saveMutation.mutate()}
+									disabled={saveMutation.isPending}
+								>
+									<Save className="size-4" />
+									{saveMutation.isPending ? "Saving..." : "Save Resume"}
+								</Button>
+								<a href={pdfDownloadHref}>
+									<Button type="button" variant="secondary">
+										<Download className="size-4" />
+										Download PDF
+									</Button>
+								</a>
+							</div>
+						</div>
+
+						<div className="space-y-2">
+							<Label
+								htmlFor="resume-template-key"
+								className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
+							>
+								PDF Template
+							</Label>
+							<select
+								id="resume-template-key"
+								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+								value={resume.templateKey}
+								onChange={(event) =>
+									setResume((current) =>
+										current
+											? {
+													...current,
+													templateKey:
+														event.target.value === "harvard_classic_v1"
+															? "harvard_classic_v1"
+															: "ats_classic_v1",
+											  }
+											: current,
+									)
+								}
+							>
+								{resumeTemplateOptions.map((option) => (
+									<option key={option.key} value={option.key}>
+										{option.label}
+									</option>
+								))}
+							</select>
+						</div>
 					</div>
-					<div className="flex flex-wrap gap-2">
+
+					<div className="rounded-md border bg-muted/30 px-3 py-2">
+						<div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+							Validation
+						</div>
+						<div className="flex flex-wrap gap-2">
 						<Badge variant={liveValidation?.errors.length ? "destructive" : "secondary"}>
-							Hard errors: {liveValidation?.errors.length ?? 0}
+							Errors: {liveValidation?.errors.length ?? 0}
 						</Badge>
 						<Badge variant="outline">
 							Warnings: {liveValidation?.warnings.length ?? 0}
 						</Badge>
 						<Badge variant="outline">
-							Estimated pages: {liveValidation?.estimatedPages ?? 1}
+							Pages: {liveValidation?.estimatedPages ?? 1}
 						</Badge>
 					</div>
-					{status ? <div className="text-sm text-emerald-600">{status}</div> : null}
-					{serverValidation?.errors.length ? (
-						<div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs text-rose-700">
-							Server validation found hard errors. Fix them before PDF export.
-						</div>
-					) : null}
+					</div>
 				</CardContent>
 			</Card>
 
@@ -333,7 +369,7 @@ export default function ResumeBuilderPage() {
 				</TabsList>
 
 				<TabsContent value="content" className="space-y-4">
-					<Card>
+					<Card id="resume-content-header">
 						<CardHeader>
 							<CardTitle className="text-lg">Header</CardTitle>
 						</CardHeader>
@@ -369,7 +405,7 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card>
+					<Card id="resume-content-summary">
 						<CardHeader>
 							<CardTitle className="text-lg">Summary</CardTitle>
 						</CardHeader>
@@ -395,7 +431,7 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card>
+					<Card id="resume-content-skills">
 						<CardHeader>
 							<CardTitle className="text-lg">Skills (comma separated)</CardTitle>
 						</CardHeader>
@@ -424,7 +460,7 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card>
+					<Card id="resume-content-experience">
 						<CardHeader className="flex-row items-center justify-between">
 							<CardTitle className="text-lg">Experience</CardTitle>
 							<Button
@@ -608,7 +644,7 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card>
+					<Card id="resume-content-education">
 						<CardHeader className="flex-row items-center justify-between">
 							<CardTitle className="text-lg">Education</CardTitle>
 							<Button
@@ -717,7 +753,7 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card>
+					<Card id="resume-content-projects">
 						<CardHeader className="flex-row items-center justify-between">
 							<CardTitle className="text-lg">Projects</CardTitle>
 							<Button
@@ -826,7 +862,7 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card>
+					<Card id="resume-content-languages">
 						<CardHeader>
 							<CardTitle className="text-lg">Languages (comma separated)</CardTitle>
 						</CardHeader>
@@ -854,7 +890,7 @@ export default function ResumeBuilderPage() {
 					</Card>
 
 					{listSections.map((section) => (
-						<Card key={section.key}>
+						<Card key={section.key} id={`resume-content-${section.key}`}>
 							<CardHeader className="flex-row items-center justify-between">
 								<CardTitle className="text-lg">{section.title}</CardTitle>
 								<Button
