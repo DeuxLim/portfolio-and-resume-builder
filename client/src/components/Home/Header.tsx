@@ -47,7 +47,7 @@ export default function Header({ portfolio }: { portfolio?: PublicPortfolio }) {
 				</div>
 			</div>
 
-			<section className="flex gap-3 md:gap-4 md:h-40 pt-3 sm:pt-4 md:pt-0">
+			<section className="flex gap-3 pt-3 sm:pt-4 md:gap-4 md:pt-0">
 				<div className="hidden h-full items-center justify-center md:flex">
 					<div className="overflow-hidden rounded-none border border-(--app-border) md:flex md:h-40 md:w-40">
 						<img
@@ -58,35 +58,39 @@ export default function Header({ portfolio }: { portfolio?: PublicPortfolio }) {
 					</div>
 				</div>
 
-				<div className="flex w-full flex-col justify-center gap-3 p-1 sm:gap-4">
-					<div className="flex flex-col h-full gap-2">
-						<div className="flex flex-col gap-1 min-w-0">
-							<div className="flex items-center justify-between">
-								<div className="font-semibold text-xl sm:text-3xl md:text-4xl tracking-tight">
-									{data.fullName}
+				<div className="flex w-full min-w-0 flex-col justify-center gap-3 px-1 pb-1 sm:gap-4 sm:px-1.5 sm:pb-2">
+					<div className="flex flex-col gap-2">
+						<div className="flex min-w-0 flex-col gap-1.5">
+							<div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+								<div className="min-w-0">
+									<div className="break-words font-semibold leading-tight tracking-tight text-xl sm:text-3xl md:text-4xl">
+										{data.fullName}
+									</div>
+									<div className="break-words text-xs leading-snug text-(--app-muted) sm:text-sm">
+										{data.headline}
+									</div>
 								</div>
-								<div className="flex gap-2">
-									<a
-										className="inline-flex h-8 items-center justify-center gap-2 rounded-none px-2 transition-colors focus-visible:ring-2 focus-visible:ring-(--app-accent) focus-visible:outline-none active:scale-[0.98] sm:h-9 sm:w-24"
-										href="/resume.pdf"
-										download
-									>
-										<FaDownload className="text-sm text-(--app-accent) sm:text-base" />
-										<div className="text-xs">Resume</div>
-									</a>
-								</div>
-							</div>
-							<div className="text-xs md:text-sm text-(--app-muted)">
-								{data.headline}
+
+								<a
+									className="inline-flex h-8 shrink-0 items-center justify-center gap-2 rounded-none px-2 transition-colors focus-visible:ring-2 focus-visible:ring-(--app-accent) focus-visible:outline-none active:scale-[0.98] sm:h-9 sm:w-24"
+									href="/resume.pdf"
+									download
+								>
+									<FaDownload className="text-sm text-(--app-accent) sm:text-base" />
+									<div className="text-xs">Resume</div>
+								</a>
 							</div>
 						</div>
-						<div className="flex items-center justify-start text-xs gap-1 text-(--app-muted)">
-							<IoLocationOutline />
-							{data.location}
+
+						<div className="flex flex-wrap items-center justify-start gap-x-1 gap-y-1 text-xs text-(--app-muted) sm:text-sm">
+							<IoLocationOutline className="shrink-0" />
+							<span className="break-words">{data.location}</span>
 						</div>
-						<div className="flex items-center justify-start text-xs gap-1 text-(--app-muted)">
-							<IoBriefcase />
-							{data.experienceSummary} | {data.education}
+						<div className="flex flex-wrap items-center justify-start gap-x-1 gap-y-1 text-xs text-(--app-muted) sm:text-sm">
+							<IoBriefcase className="shrink-0" />
+							<span className="break-words">
+								{data.experienceSummary} | {data.education}
+							</span>
 						</div>
 					</div>
 

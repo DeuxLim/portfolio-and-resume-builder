@@ -24,8 +24,14 @@ export const resolveAssetUrl = (value: string) => {
 	}
 
 	if (trimmed.startsWith("/")) {
-		const origin = getApiOrigin();
-		return origin ? `${origin}${trimmed}` : trimmed;
+		// Only backend-served assets should be prefixed with the API origin.
+		// Default assets live in the frontend `public/` folder (same origin as the SPA).
+		if (trimmed.startsWith("/uploads/")) {
+			const origin = getApiOrigin();
+			return origin ? `${origin}${trimmed}` : trimmed;
+		}
+
+		return trimmed;
 	}
 
 	return trimmed;
@@ -37,4 +43,3 @@ export const getAvatarUrl = (value?: string) => {
 	const resolved = resolveAssetUrl(String(value ?? ""));
 	return resolved || getDefaultAvatarUrl();
 };
-
