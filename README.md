@@ -93,6 +93,32 @@ This starts:
 - frontend on `http://localhost:5173`
 - backend on `http://localhost:3000`
 
+If you only need the backend:
+
+```bash
+npm run server
+```
+
+Optional watch mode (if your environment supports it):
+
+```bash
+npm run server:watch
+```
+
+## API Connectivity Quick Checks
+
+If the browser shows `ERR_CONNECTION_REFUSED` for `:3000/api/*`, verify backend availability:
+
+```bash
+lsof -nP -iTCP:3000 -sTCP:LISTEN
+curl -i http://localhost:3000/api/health
+```
+
+Expected:
+
+- `lsof` shows a process listening on port `3000`
+- health endpoint returns `200 OK`
+
 ## Local Usage Flow
 
 ### 1. Open the landing page
