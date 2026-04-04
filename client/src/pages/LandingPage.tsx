@@ -10,16 +10,12 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
-	ArrowRight,
 	CheckCircle2,
 	CopyCheck,
 	Eye,
 	LayoutTemplate,
 	Rocket,
-	Sparkles,
-	WandSparkles,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import PortfolioMiniPreview from "@/components/Landing/PortfolioMiniPreview";
 
 const pillars = [
@@ -48,11 +44,6 @@ export default function LandingPage() {
 		<main className="mx-auto w-full max-w-[88rem] space-y-14 pb-20 sm:space-y-20 sm:pb-28">
 			<section className="grid items-start gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-12">
 				<div className="space-y-8 sm:space-y-10">
-					<Badge variant="secondary" className="w-fit px-3 py-1">
-						<Sparkles className="mr-1 size-3.5" />
-						Resume-Style Web Dev Portfolio
-					</Badge>
-
 					<div className="space-y-5 sm:space-y-6">
 						<h1 className="max-w-xl text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
 							Build a resume-style web developer portfolio in one sitting.
@@ -72,12 +63,6 @@ export default function LandingPage() {
 							className={buttonVariants({ size: "lg", variant: "outline" })}
 						>
 							View full sample
-						</Link>
-						<Link
-							to="/login"
-							className={buttonVariants({ size: "lg", variant: "ghost" })}
-						>
-							Log in
 						</Link>
 					</div>
 
@@ -112,28 +97,18 @@ export default function LandingPage() {
 					</CardHeader>
 					<CardContent className="space-y-5 p-6 pt-0 sm:p-8 sm:pt-0">
 						<PortfolioMiniPreview />
-						<div className="rounded-md border bg-background/90 px-3 py-2 text-sm font-medium">
+						<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm font-medium">
 							your-domain.com/your-username
 						</div>
-						<div className="rounded-md border bg-background/70 px-3 py-2 text-sm text-muted-foreground">
+						<div className="rounded-lg bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
 							Want to inspect the full layout? Scroll to the featured sample section.
 						</div>
-						<Link
-							to="/signup"
-							className={cn(buttonVariants({ variant: "outline" }), "w-full")}
-						>
-							Start building <ArrowRight className="size-4" />
-						</Link>
 					</CardContent>
 				</Card>
 			</section>
 
 			<section className="space-y-4">
 				<div className="space-y-2">
-					<Badge variant="secondary" className="w-fit">
-						<Eye className="mr-1 size-3.5" />
-						Featured Resume-Style Sample
-					</Badge>
 					<h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
 						Full-size sample portfolio output
 					</h2>
@@ -145,12 +120,9 @@ export default function LandingPage() {
 				<Card className="border-border/70 bg-gradient-to-br from-sky-500/10 via-background to-emerald-500/5 shadow-none">
 					<CardContent className="space-y-5 p-6 sm:p-8">
 						<PortfolioMiniPreview large />
-						<div className="rounded-md border bg-background/90 px-3 py-2 text-sm font-medium">
+						<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm font-medium">
 							your-domain.com/your-username
 						</div>
-						<Link to="/sample" className={cn(buttonVariants({ variant: "outline" }), "w-full")}>
-							Open full sample page <ArrowRight className="size-4" />
-						</Link>
 					</CardContent>
 				</Card>
 			</section>
@@ -221,22 +193,6 @@ export default function LandingPage() {
 				</Card>
 			</section>
 
-			<section className="rounded-2xl border bg-gradient-to-r from-muted/40 via-background to-muted/40 p-8 sm:p-10">
-				<div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-					<div className="space-y-2">
-						<div className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-							<WandSparkles className="size-4" />
-							Ready to publish your own version?
-						</div>
-						<h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-							Start from the sample, then make it yours.
-						</h2>
-					</div>
-					<Link to="/signup" className={buttonVariants({ size: "lg" })}>
-						Create account <ArrowRight className="size-4" />
-					</Link>
-				</div>
-			</section>
 		</main>
 	);
 }

@@ -33,7 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { Layers3 } from "lucide-react";
+import { ChevronDown, ChevronUp, Layers3 } from "lucide-react";
 import GridLayout, {
 	useContainerWidth,
 	type Layout as GridLayoutModel,
@@ -102,6 +102,7 @@ export default function PortfolioEditorPage() {
 	const [quickTechInput, setQuickTechInput] = useState<Record<string, string>>({});
 	const [layoutFeedback, setLayoutFeedback] = useState("");
 	const [draggingSection, setDraggingSection] = useState<PortfolioSectionKey | null>(null);
+	const [openPanels, setOpenPanels] = useState<Record<string, boolean>>({});
 	const [canvasLayout, setCanvasLayout] = useState<GridLayoutModel>([]);
 	const [activeTab, setActiveTab] = useState("profile");
 	const [pendingAutoFit, setPendingAutoFit] = useState(false);
@@ -396,6 +397,10 @@ export default function PortfolioEditorPage() {
 		if (!value) return;
 		addTechToCategory(categoryId, value);
 		setQuickTechInput((current) => ({ ...current, [categoryId]: "" }));
+	};
+
+	const togglePanel = (panelId: string) => {
+		setOpenPanels((current) => ({ ...current, [panelId]: !current[panelId] }));
 	};
 
 	const getLayoutOrder = (source: EditablePortfolio) =>
@@ -701,329 +706,378 @@ export default function PortfolioEditorPage() {
 	const renderCustomSectionsEditor = () => {
 		if (!portfolio) return null;
 		return (
-			<div className="space-y-3">
-			<div className="flex flex-wrap gap-2">
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					disabled={portfolio.customSections.length >= MAX_CUSTOM_SECTIONS}
-					onClick={() => addCustomSectionWithType("text")}
-				>
-					Add text section
-				</Button>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					disabled={portfolio.customSections.length >= MAX_CUSTOM_SECTIONS}
-					onClick={() => addCustomSectionWithType("bullets")}
-				>
-					Add bullet list
-				</Button>
-				<Button
-					type="button"
-					variant="outline"
-					size="sm"
-					disabled={portfolio.customSections.length >= MAX_CUSTOM_SECTIONS}
-					onClick={() => addCustomSectionWithType("links")}
-				>
-					Add links section
-				</Button>
-			</div>
-			<div className="text-xs text-muted-foreground">
-				{portfolio.customSections.length} / {MAX_CUSTOM_SECTIONS} custom sections
-			</div>
-			{portfolio.customSections.map((item) => (
-				<div key={item.id} className="space-y-2 rounded-lg border p-3">
-					<Input
-						placeholder="Section title"
-						value={item.title}
-						onChange={(event) =>
-							setPortfolio((current) =>
-								current
-									? {
-											...current,
-											customSections: current.customSections.map((entry) =>
-												entry.id === item.id
-													? { ...entry, title: event.target.value }
-													: entry,
-											),
-										}
-									: current,
-							)
-						}
-					/>
-					<div className="space-y-2">
-						<Label>Type</Label>
-						<select
-							className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
-							value={item.type}
-							onChange={(event) =>
-								setPortfolio((current) =>
-									current
-										? {
-												...current,
-												customSections: current.customSections.map((entry) =>
-													entry.id === item.id
-														? {
-																...entry,
-																type: event.target.value as CustomSection["type"],
-																items:
-																	event.target.value === "bullets"
-																		? entry.items?.length
-																			? entry.items
-																			: [""]
-																		: [],
-																links:
-																	event.target.value === "links"
-																		? entry.links?.length
-																			? entry.links
-																			: [{ id: `${Date.now()}-link`, label: "", url: "" }]
-																		: [],
-															}
-														: entry,
-												),
-											}
-										: current,
-								)
-							}
-						>
-							<option value="text">Text</option>
-							<option value="bullets">Bullet List</option>
-							<option value="links">Links</option>
-						</select>
-					</div>
-					{item.type === "bullets" ? (
-						<div className="space-y-2">
-							{item.items.map((bullet, bulletIndex) => (
-								<div key={`${item.id}-bullet-${bulletIndex}`} className="flex gap-2">
-									<Input
-										placeholder="Bullet item"
-										value={bullet}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															customSections: current.customSections.map((entry) =>
-																entry.id === item.id
-																	? {
-																			...entry,
-																			items: entry.items.map((row, rowIndex) =>
-																				rowIndex === bulletIndex ? event.target.value : row,
-																			),
-																		}
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										onClick={() =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															customSections: current.customSections.map((entry) =>
-																entry.id === item.id
-																	? {
-																			...entry,
-																			items:
-																				entry.items.length > 1
-																					? entry.items.filter((_, i) => i !== bulletIndex)
-																					: entry.items,
-																		}
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									>
-										Remove
-									</Button>
-								</div>
-							))}
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() =>
-									setPortfolio((current) =>
-										current
-											? {
-													...current,
-													customSections: current.customSections.map((entry) =>
-														entry.id === item.id
-															? { ...entry, items: [...entry.items, ""] }
-															: entry,
-													),
-												}
-											: current,
-									)
-								}
-							>
-								Add bullet item
-							</Button>
-						</div>
-					) : item.type === "links" ? (
-						<div className="space-y-2">
-							{item.links.map((link, linkIndex) => (
-								<div key={link.id || `${item.id}-link-${linkIndex}`} className="space-y-2 rounded-md border p-2">
-									<Input
-										placeholder="Link label"
-										value={link.label}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															customSections: current.customSections.map((entry) =>
-																entry.id === item.id
-																	? {
-																			...entry,
-																			links: entry.links.map((row, rowIndex) =>
-																				rowIndex === linkIndex
-																					? { ...row, label: event.target.value }
-																					: row,
-																			),
-																		}
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<Input
-										placeholder="https://example.com"
-										value={link.url}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															customSections: current.customSections.map((entry) =>
-																entry.id === item.id
-																	? {
-																			...entry,
-																			links: entry.links.map((row, rowIndex) =>
-																				rowIndex === linkIndex
-																					? { ...row, url: event.target.value }
-																					: row,
-																			),
-																		}
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										onClick={() =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															customSections: current.customSections.map((entry) =>
-																entry.id === item.id
-																	? {
-																			...entry,
-																			links:
-																				entry.links.length > 1
-																					? entry.links.filter((_, i) => i !== linkIndex)
-																					: entry.links,
-																		}
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									>
-										Remove link
-									</Button>
-								</div>
-							))}
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								onClick={() =>
-									setPortfolio((current) =>
-										current
-											? {
-													...current,
-													customSections: current.customSections.map((entry) =>
-														entry.id === item.id
-															? {
-																	...entry,
-																	links: [
-																		...entry.links,
-																		{ id: `${Date.now()}-link`, label: "", url: "" },
-																	],
-																}
-															: entry,
-													),
-												}
-											: current,
-									)
-								}
-							>
-								Add link
-							</Button>
-						</div>
-					) : (
-						<Textarea
-							rows={4}
-							value={item.body}
-							onChange={(event) =>
-								setPortfolio((current) =>
-									current
-										? {
-												...current,
-												customSections: current.customSections.map((entry) =>
-													entry.id === item.id
-														? { ...entry, body: event.target.value }
-														: entry,
-												),
-											}
-										: current,
-								)
-							}
-						/>
-					)}
+			<div className="space-y-5">
+				<div className="flex flex-wrap gap-2">
 					<Button
 						type="button"
-						variant="ghost"
+						variant="outline"
 						size="sm"
-						onClick={() =>
-							setPortfolio((current) =>
-								current
-									? {
-											...current,
-											customSections: current.customSections.filter(
-												(entry) => entry.id !== item.id,
-											),
-										}
-									: current,
-							)
-						}
+						disabled={portfolio.customSections.length >= MAX_CUSTOM_SECTIONS}
+						onClick={() => addCustomSectionWithType("text")}
 					>
-						Remove section
+						Add text section
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						disabled={portfolio.customSections.length >= MAX_CUSTOM_SECTIONS}
+						onClick={() => addCustomSectionWithType("bullets")}
+					>
+						Add bullet list
+					</Button>
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						disabled={portfolio.customSections.length >= MAX_CUSTOM_SECTIONS}
+						onClick={() => addCustomSectionWithType("links")}
+					>
+						Add links section
 					</Button>
 				</div>
-			))}
+				<div className="text-xs text-muted-foreground">
+					{portfolio.customSections.length} / {MAX_CUSTOM_SECTIONS} custom sections
+				</div>
+				<div className="max-h-[34rem] space-y-4 overflow-y-auto pr-1">
+					{portfolio.customSections.map((item, index) => {
+					const panelId = `custom-${item.id}`;
+					const isOpen = openPanels[panelId] ?? index === 0;
+					return (
+					<div key={item.id} className="space-y-3 rounded-xl bg-muted/20 p-4">
+						<div className="flex items-center justify-between gap-2">
+							<div className="space-y-0.5">
+								<div className="text-xs font-medium text-muted-foreground">
+									Section {index + 1}
+								</div>
+								<div className="text-sm font-medium">
+									{item.title || "Untitled section"}
+								</div>
+							</div>
+							<div className="flex items-center gap-1">
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									onClick={() => togglePanel(panelId)}
+								>
+									{isOpen ? (
+										<>
+											Collapse <ChevronUp className="size-3.5" />
+										</>
+									) : (
+										<>
+											Edit <ChevronDown className="size-3.5" />
+										</>
+									)}
+								</Button>
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									onClick={() =>
+										setPortfolio((current) =>
+											current
+												? {
+														...current,
+														customSections: current.customSections.filter(
+															(entry) => entry.id !== item.id,
+														),
+													}
+												: current,
+										)
+									}
+								>
+									Remove section
+								</Button>
+							</div>
+						</div>
+						{!isOpen ? (
+							<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
+								{item.type === "bullets"
+									? `${item.items?.filter(Boolean).length ?? 0} bullet item(s)`
+									: item.type === "links"
+										? `${item.links?.filter((link) => link.label || link.url).length ?? 0} link(s)`
+										: item.body?.trim() || "No content yet."}
+							</div>
+						) : (
+							<>
+								<Input
+									placeholder="Section title"
+									value={item.title}
+									onChange={(event) =>
+										setPortfolio((current) =>
+											current
+												? {
+														...current,
+														customSections: current.customSections.map((entry) =>
+															entry.id === item.id
+																? { ...entry, title: event.target.value }
+																: entry,
+														),
+													}
+												: current,
+										)
+									}
+								/>
+								<div className="space-y-2">
+									<Label>Type</Label>
+									<select
+										className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+										value={item.type}
+										onChange={(event) =>
+											setPortfolio((current) =>
+												current
+													? {
+															...current,
+															customSections: current.customSections.map((entry) =>
+																entry.id === item.id
+																	? {
+																			...entry,
+																			type: event.target.value as CustomSection["type"],
+																			items:
+																				event.target.value === "bullets"
+																					? entry.items?.length
+																						? entry.items
+																						: [""]
+																					: [],
+																			links:
+																				event.target.value === "links"
+																					? entry.links?.length
+																						? entry.links
+																						: [{ id: `${Date.now()}-link`, label: "", url: "" }]
+																					: [],
+																		}
+																	: entry,
+															),
+														}
+													: current,
+											)
+										}
+									>
+										<option value="text">Text</option>
+										<option value="bullets">Bullet List</option>
+										<option value="links">Links</option>
+									</select>
+								</div>
+								{item.type === "bullets" ? (
+									<div className="space-y-2">
+										{item.items.map((bullet, bulletIndex) => (
+											<div key={`${item.id}-bullet-${bulletIndex}`} className="flex gap-2">
+												<Input
+													placeholder="Bullet item"
+													value={bullet}
+													onChange={(event) =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		customSections: current.customSections.map((entry) =>
+																			entry.id === item.id
+																				? {
+																						...entry,
+																						items: entry.items.map((row, rowIndex) =>
+																							rowIndex === bulletIndex ? event.target.value : row,
+																						),
+																					}
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												/>
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													onClick={() =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		customSections: current.customSections.map((entry) =>
+																			entry.id === item.id
+																				? {
+																						...entry,
+																						items:
+																							entry.items.length > 1
+																								? entry.items.filter((_, i) => i !== bulletIndex)
+																								: entry.items,
+																					}
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												>
+													Remove
+												</Button>
+											</div>
+										))}
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={() =>
+												setPortfolio((current) =>
+													current
+														? {
+																...current,
+																customSections: current.customSections.map((entry) =>
+																	entry.id === item.id
+																		? { ...entry, items: [...entry.items, ""] }
+																		: entry,
+																),
+															}
+														: current,
+												)
+											}
+										>
+											Add bullet item
+										</Button>
+									</div>
+								) : item.type === "links" ? (
+									<div className="space-y-2">
+										{item.links.map((link, linkIndex) => (
+											<div
+												key={link.id || `${item.id}-link-${linkIndex}`}
+												className="space-y-2 rounded-md border p-2"
+											>
+												<Input
+													placeholder="Link label"
+													value={link.label}
+													onChange={(event) =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		customSections: current.customSections.map((entry) =>
+																			entry.id === item.id
+																				? {
+																						...entry,
+																						links: entry.links.map((row, rowIndex) =>
+																							rowIndex === linkIndex
+																								? { ...row, label: event.target.value }
+																								: row,
+																						),
+																					}
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												/>
+												<Input
+													placeholder="https://example.com"
+													value={link.url}
+													onChange={(event) =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		customSections: current.customSections.map((entry) =>
+																			entry.id === item.id
+																				? {
+																						...entry,
+																						links: entry.links.map((row, rowIndex) =>
+																							rowIndex === linkIndex
+																								? { ...row, url: event.target.value }
+																								: row,
+																						),
+																					}
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												/>
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													onClick={() =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		customSections: current.customSections.map((entry) =>
+																			entry.id === item.id
+																				? {
+																						...entry,
+																						links:
+																							entry.links.length > 1
+																								? entry.links.filter((_, i) => i !== linkIndex)
+																								: entry.links,
+																					}
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												>
+													Remove link
+												</Button>
+											</div>
+										))}
+										<Button
+											type="button"
+											variant="outline"
+											size="sm"
+											onClick={() =>
+												setPortfolio((current) =>
+													current
+														? {
+																...current,
+																customSections: current.customSections.map((entry) =>
+																	entry.id === item.id
+																		? {
+																				...entry,
+																				links: [
+																					...entry.links,
+																					{ id: `${Date.now()}-link`, label: "", url: "" },
+																				],
+																			}
+																		: entry,
+																),
+															}
+														: current,
+												)
+											}
+										>
+											Add link
+										</Button>
+									</div>
+								) : (
+									<Textarea
+										rows={4}
+										value={item.body}
+										onChange={(event) =>
+											setPortfolio((current) =>
+												current
+													? {
+															...current,
+															customSections: current.customSections.map((entry) =>
+																entry.id === item.id
+																	? { ...entry, body: event.target.value }
+																	: entry,
+															),
+														}
+													: current,
+											)
+										}
+									/>
+								)}
+							</>
+						)}
+					</div>
+					);
+				})}
+				</div>
 			</div>
 		);
 	};
@@ -1035,7 +1089,7 @@ export default function PortfolioEditorPage() {
 
 	return (
 		<main className="space-y-5 pb-10">
-			<Card className="border-border/70 bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-transparent shadow-none">
+			<Card className="bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-transparent shadow-none">
 				<CardHeader className="gap-4 md:flex-row md:items-start md:justify-between">
 					<div className="space-y-2">
 						<Badge variant="secondary" className="w-fit">
@@ -1079,8 +1133,11 @@ export default function PortfolioEditorPage() {
 				)}
 			</Card>
 
-			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-				<TabsList className="w-full justify-start" variant="line">
+			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-7">
+				<TabsList
+					className="w-full justify-start gap-1 overflow-x-auto rounded-xl bg-background/80 p-1"
+					variant="line"
+				>
 					<TabsTrigger value="profile">Profile</TabsTrigger>
 					<TabsTrigger value="story">Story</TabsTrigger>
 					<TabsTrigger value="career">Career</TabsTrigger>
@@ -1089,13 +1146,13 @@ export default function PortfolioEditorPage() {
 					<TabsTrigger value="extras">Extras</TabsTrigger>
 				</TabsList>
 
-				<TabsContent value="profile" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-					<Card className="border-border/70 shadow-none">
+				<TabsContent value="profile" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+					<Card className="shadow-none">
 						<CardHeader>
 							<CardTitle>Identity</CardTitle>
 							<CardDescription>Your name, headline, and contact basics.</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-3">
+						<CardContent className="space-y-4">
 							{[
 								["fullName", "Full name"],
 								["headline", "Headline"],
@@ -1105,7 +1162,7 @@ export default function PortfolioEditorPage() {
 								["availability", "Availability"],
 								["phone", "Phone"],
 							].map(([key, label]) => (
-								<div key={key} className="space-y-2">
+								<div key={key} className="space-y-2 rounded-lg bg-muted/20 p-3">
 									<Label htmlFor={key}>{label}</Label>
 									<Input
 										id={key}
@@ -1122,15 +1179,15 @@ export default function PortfolioEditorPage() {
 						</CardContent>
 					</Card>
 
-					<Card className="border-border/70 shadow-none">
+					<Card className="shadow-none">
 						<CardHeader>
 							<CardTitle>Links & Visuals</CardTitle>
 							<CardDescription>
 								Set your profile image and social destinations.
 							</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-3">
-							<div className="space-y-2 rounded-lg border p-3">
+						<CardContent className="space-y-4">
+							<div className="space-y-2 rounded-lg bg-muted/20 p-4">
 								<Label>Profile photo</Label>
 								<div className="flex items-center gap-3">
 									<img
@@ -1179,7 +1236,7 @@ export default function PortfolioEditorPage() {
 									}}
 								/>
 							</div>
-							<div className="space-y-2 rounded-lg border p-3">
+							<div className="space-y-2 rounded-lg bg-muted/20 p-4">
 								<Label>Cover image</Label>
 								<div className="space-y-2">
 									<div className="overflow-hidden rounded-md border">
@@ -1229,83 +1286,123 @@ export default function PortfolioEditorPage() {
 									}}
 								/>
 							</div>
-							{[
+							<div className="rounded-lg bg-muted/20 p-4">
+								<div className="mb-3 text-sm font-medium">Profile links</div>
+								<div className="space-y-3">
+									{[
 								["avatarUrl", "Avatar image URL"],
 								["coverUrl", "Cover image URL"],
 								["githubUrl", "GitHub URL (optional)"],
 								["githubUsername", "GitHub username (optional)"],
 								["linkedinUrl", "LinkedIn URL"],
-							].map(([key, label]) => (
-								<div key={key} className="space-y-2">
-									<Label htmlFor={key}>{label}</Label>
-									<Input
-										id={key}
-										value={String(portfolio[key as keyof EditablePortfolio] ?? "")}
-										onChange={(event) =>
-											setBasicField(
-												key as Parameters<typeof setBasicField>[0],
-												event.target.value,
-											)
-										}
-									/>
-									{key === "coverUrl" &&
-										Boolean(String(portfolio.coverUrl ?? "").trim()) && (
-										<div className="overflow-hidden rounded-md border">
-											<img
-												src={resolveAssetUrl(String(portfolio.coverUrl ?? ""))}
-												alt="Cover preview"
-												className="h-24 w-full object-cover"
+									].map(([key, label]) => (
+										<div key={key} className="space-y-2">
+											<Label htmlFor={key}>{label}</Label>
+											<Input
+												id={key}
+												value={String(portfolio[key as keyof EditablePortfolio] ?? "")}
+												onChange={(event) =>
+													setBasicField(
+														key as Parameters<typeof setBasicField>[0],
+														event.target.value,
+													)
+												}
 											/>
+											{key === "coverUrl" &&
+												Boolean(String(portfolio.coverUrl ?? "").trim()) && (
+												<div className="overflow-hidden rounded-md border">
+													<img
+														src={resolveAssetUrl(String(portfolio.coverUrl ?? ""))}
+														alt="Cover preview"
+														className="h-24 w-full object-cover"
+													/>
+												</div>
+											)}
 										</div>
-									)}
+									))}
 								</div>
-							))}
+							</div>
 						</CardContent>
 					</Card>
 				</TabsContent>
 
-				<TabsContent value="story" className="space-y-4">
-					<Card className="border-border/70 shadow-none">
+				<TabsContent value="story" className="space-y-6">
+					<Card className="shadow-none">
 						<CardHeader>
 							<CardTitle>About section</CardTitle>
 							<CardDescription>
 								Write short paragraphs focused on impact and clarity.
 							</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-3">
-							{portfolio.about.map((paragraph, index) => (
-								<div key={index} className="space-y-2 rounded-lg border p-3">
-									<Textarea
-										value={paragraph}
-										rows={4}
-										onChange={(event) =>
-											setPortfolio((current) => {
-												if (!current) return current;
-												const next = [...current.about];
-												next[index] = event.target.value;
-												return { ...current, about: next };
-											})
-										}
-									/>
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										onClick={() =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															about: current.about.filter((_, i) => i !== index),
-														}
-													: current,
-											)
-										}
-									>
-										Remove paragraph
-									</Button>
+						<CardContent className="space-y-4">
+							<div className="max-h-[30rem] space-y-4 overflow-y-auto pr-1">
+								{portfolio.about.map((paragraph, index) => {
+								const panelId = `about-${index}`;
+								const isOpen = openPanels[panelId] ?? index === 0;
+								return (
+								<div key={index} className="space-y-3 rounded-xl bg-muted/20 p-4">
+									<div className="flex items-center justify-between gap-2">
+										<div className="text-xs font-medium text-muted-foreground">
+											Paragraph {index + 1}
+										</div>
+										<div className="flex items-center gap-1">
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() => togglePanel(panelId)}
+											>
+												{isOpen ? (
+													<>
+														Collapse <ChevronUp className="size-3.5" />
+													</>
+												) : (
+													<>
+														Edit <ChevronDown className="size-3.5" />
+													</>
+												)}
+											</Button>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	about: current.about.filter((_, i) => i !== index),
+																}
+															: current,
+													)
+												}
+											>
+												Remove paragraph
+											</Button>
+										</div>
+									</div>
+									{!isOpen ? (
+										<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
+											{paragraph?.trim() ? paragraph : "No content yet."}
+										</div>
+									) : (
+										<Textarea
+											value={paragraph}
+											rows={4}
+											onChange={(event) =>
+												setPortfolio((current) => {
+													if (!current) return current;
+													const next = [...current.about];
+													next[index] = event.target.value;
+													return { ...current, about: next };
+												})
+											}
+										/>
+									)}
 								</div>
-							))}
+								);
+							})}
+							</div>
 							<Button
 								type="button"
 								variant="outline"
@@ -1323,13 +1420,13 @@ export default function PortfolioEditorPage() {
 					</Card>
 				</TabsContent>
 
-				<TabsContent value="career" className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-					<Card className="border-border/70 shadow-none">
+				<TabsContent value="career" className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+					<Card className="shadow-none">
 						<CardHeader>
 							<CardTitle>Timeline</CardTitle>
 							<CardDescription>Career milestones and key dates.</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-3">
+						<CardContent className="space-y-4">
 							<Button
 								type="button"
 								variant="outline"
@@ -1344,112 +1441,155 @@ export default function PortfolioEditorPage() {
 							>
 								Add timeline item
 							</Button>
-							{portfolio.timeline.map((item) => (
-								<div key={item.id} className="space-y-2 rounded-lg border p-3">
-									<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-										<Input
-											placeholder="Year"
-											value={item.year}
-											onChange={(event) =>
-												setPortfolio((current) =>
-													current
-														? {
-																...current,
-																timeline: current.timeline.map((entry) =>
-																	entry.id === item.id
-																		? { ...entry, year: event.target.value }
-																		: entry,
-																),
-															}
-														: current,
-												)
-											}
-										/>
-										<Input
-											placeholder="Position"
-											value={item.position}
-											onChange={(event) =>
-												setPortfolio((current) =>
-													current
-														? {
-																...current,
-																timeline: current.timeline.map((entry) =>
-																	entry.id === item.id
-																		? { ...entry, position: event.target.value }
-																		: entry,
-																),
-															}
-														: current,
-												)
-											}
-										/>
+							<div className="max-h-[30rem] space-y-4 overflow-y-auto pr-1">
+								{portfolio.timeline.map((item, index) => {
+								const panelId = `timeline-${item.id}`;
+								const isOpen = openPanels[panelId] ?? index === 0;
+								return (
+								<div key={item.id} className="space-y-3 rounded-xl bg-muted/20 p-4">
+									<div className="flex items-center justify-between gap-2">
+										<div className="space-y-0.5">
+											<div className="text-xs font-medium text-muted-foreground">
+												Timeline item {index + 1}
+											</div>
+											<div className="text-sm font-medium">
+												{item.position || item.company || "Untitled milestone"}
+											</div>
+										</div>
+										<div className="flex items-center gap-1">
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() => togglePanel(panelId)}
+											>
+												{isOpen ? (
+													<>
+														Collapse <ChevronUp className="size-3.5" />
+													</>
+												) : (
+													<>
+														Edit <ChevronDown className="size-3.5" />
+													</>
+												)}
+											</Button>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	timeline: current.timeline.filter(
+																		(entry) => entry.id !== item.id,
+																	),
+																}
+															: current,
+													)
+												}
+											>
+												Remove
+											</Button>
+										</div>
 									</div>
-									<Input
-										placeholder="Company"
-										value={item.company}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															timeline: current.timeline.map((entry) =>
-																entry.id === item.id
-																	? { ...entry, company: event.target.value }
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<Input
-										placeholder="Note"
-										value={item.note}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															timeline: current.timeline.map((entry) =>
-																entry.id === item.id
-																	? { ...entry, note: event.target.value }
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										onClick={() =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															timeline: current.timeline.filter(
-																(entry) => entry.id !== item.id,
-															),
-														}
-													: current,
-											)
-										}
-									>
-										Remove
-									</Button>
+									{!isOpen ? (
+										<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
+											{[item.year, item.position, item.company].filter(Boolean).join(" • ") ||
+												"No details yet."}
+										</div>
+									) : (
+										<>
+											<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+												<Input
+													placeholder="Year"
+													value={item.year}
+													onChange={(event) =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		timeline: current.timeline.map((entry) =>
+																			entry.id === item.id
+																				? { ...entry, year: event.target.value }
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												/>
+												<Input
+													placeholder="Position"
+													value={item.position}
+													onChange={(event) =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		timeline: current.timeline.map((entry) =>
+																			entry.id === item.id
+																				? { ...entry, position: event.target.value }
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												/>
+											</div>
+											<Input
+												placeholder="Company"
+												value={item.company}
+												onChange={(event) =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	timeline: current.timeline.map((entry) =>
+																		entry.id === item.id
+																			? { ...entry, company: event.target.value }
+																			: entry,
+																	),
+																}
+															: current,
+													)
+												}
+											/>
+											<Input
+												placeholder="Note"
+												value={item.note}
+												onChange={(event) =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	timeline: current.timeline.map((entry) =>
+																		entry.id === item.id
+																			? { ...entry, note: event.target.value }
+																			: entry,
+																	),
+																}
+															: current,
+													)
+												}
+											/>
+										</>
+									)}
 								</div>
-							))}
+								);
+							})}
+							</div>
 						</CardContent>
 					</Card>
 
-					<Card className="border-border/70 shadow-none">
+					<Card className="shadow-none">
 						<CardHeader>
 							<CardTitle>Experience</CardTitle>
 							<CardDescription>Roles, periods, and achievements.</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-3">
+						<CardContent className="space-y-4">
 							<Button
 								type="button"
 								variant="outline"
@@ -1467,121 +1607,164 @@ export default function PortfolioEditorPage() {
 							>
 								Add role
 							</Button>
-							{portfolio.experiences.map((item) => (
-								<div key={item.id} className="space-y-2 rounded-lg border p-3">
-									<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-										<Input
-											placeholder="Role"
-											value={item.role}
-											onChange={(event) =>
-												setPortfolio((current) =>
-													current
-														? {
-																...current,
-																experiences: current.experiences.map((entry) =>
-																	entry.id === item.id
-																		? { ...entry, role: event.target.value }
-																		: entry,
-																),
-															}
-														: current,
-												)
-											}
-										/>
-										<Input
-											placeholder="Company"
-											value={item.company}
-											onChange={(event) =>
-												setPortfolio((current) =>
-													current
-														? {
-																...current,
-																experiences: current.experiences.map((entry) =>
-																	entry.id === item.id
-																		? { ...entry, company: event.target.value }
-																		: entry,
-																),
-															}
-														: current,
-												)
-											}
-										/>
+							<div className="max-h-[30rem] space-y-4 overflow-y-auto pr-1">
+								{portfolio.experiences.map((item, index) => {
+								const panelId = `experience-${item.id}`;
+								const isOpen = openPanels[panelId] ?? index === 0;
+								return (
+								<div key={item.id} className="space-y-3 rounded-xl bg-muted/20 p-4">
+									<div className="flex items-center justify-between gap-2">
+										<div className="space-y-0.5">
+											<div className="text-xs font-medium text-muted-foreground">
+												Role {index + 1}
+											</div>
+											<div className="text-sm font-medium">
+												{item.role || item.company || "Untitled role"}
+											</div>
+										</div>
+										<div className="flex items-center gap-1">
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() => togglePanel(panelId)}
+											>
+												{isOpen ? (
+													<>
+														Collapse <ChevronUp className="size-3.5" />
+													</>
+												) : (
+													<>
+														Edit <ChevronDown className="size-3.5" />
+													</>
+												)}
+											</Button>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	experiences: current.experiences.filter(
+																		(entry) => entry.id !== item.id,
+																	),
+																}
+															: current,
+													)
+												}
+											>
+												Remove role
+											</Button>
+										</div>
 									</div>
-									<Input
-										placeholder="Period"
-										value={item.period}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															experiences: current.experiences.map((entry) =>
-																entry.id === item.id
-																	? { ...entry, period: event.target.value }
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<Textarea
-										placeholder="One highlight per line"
-										rows={4}
-										value={item.highlights.join("\n")}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															experiences: current.experiences.map((entry) =>
-																entry.id === item.id
-																	? {
-																			...entry,
-																			highlights: event.target.value
-																				.split("\n")
-																				.map((value) => value.trim())
-																				.filter(Boolean),
-																		}
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										onClick={() =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															experiences: current.experiences.filter(
-																(entry) => entry.id !== item.id,
-															),
-														}
-													: current,
-											)
-										}
-									>
-										Remove role
-									</Button>
+									{!isOpen ? (
+										<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
+											{[item.role, item.company, item.period].filter(Boolean).join(" • ") ||
+												"No details yet."}
+										</div>
+									) : (
+										<>
+											<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+												<Input
+													placeholder="Role"
+													value={item.role}
+													onChange={(event) =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		experiences: current.experiences.map((entry) =>
+																			entry.id === item.id
+																				? { ...entry, role: event.target.value }
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												/>
+												<Input
+													placeholder="Company"
+													value={item.company}
+													onChange={(event) =>
+														setPortfolio((current) =>
+															current
+																? {
+																		...current,
+																		experiences: current.experiences.map((entry) =>
+																			entry.id === item.id
+																				? { ...entry, company: event.target.value }
+																				: entry,
+																		),
+																	}
+																: current,
+														)
+													}
+												/>
+											</div>
+											<Input
+												placeholder="Period"
+												value={item.period}
+												onChange={(event) =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	experiences: current.experiences.map((entry) =>
+																		entry.id === item.id
+																			? { ...entry, period: event.target.value }
+																			: entry,
+																	),
+																}
+															: current,
+													)
+												}
+											/>
+											<Textarea
+												placeholder="One highlight per line"
+												rows={4}
+												value={item.highlights.join("\n")}
+												onChange={(event) =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	experiences: current.experiences.map((entry) =>
+																		entry.id === item.id
+																			? {
+																					...entry,
+																					highlights: event.target.value
+																						.split("\n")
+																						.map((value) => value.trim())
+																						.filter(Boolean),
+																				}
+																			: entry,
+																	),
+																}
+															: current,
+													)
+												}
+											/>
+										</>
+									)}
 								</div>
-							))}
+								);
+							})}
+							</div>
 						</CardContent>
 					</Card>
 				</TabsContent>
 
-				<TabsContent value="stack" className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-					<Card className="border-border/70 shadow-none">
+				<TabsContent value="stack" className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+					<Card className="shadow-none">
 						<CardHeader>
 							<CardTitle>Tech stack</CardTitle>
 							<CardDescription>Group skills by category.</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-3">
+						<CardContent className="space-y-4">
 							<Button
 								type="button"
 								variant="outline"
@@ -1599,158 +1782,200 @@ export default function PortfolioEditorPage() {
 							>
 								Add category
 							</Button>
-							{portfolio.techCategories.map((item) => (
-								<div key={item.id} className="space-y-2 rounded-lg border p-3">
-									<Input
-										placeholder="Category name"
-										value={item.name}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															techCategories: current.techCategories.map((entry) =>
-																entry.id === item.id
-																	? { ...entry, name: event.target.value }
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<Input
-										placeholder="React, TypeScript, Tailwind"
-										value={item.items.join(", ")}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															techCategories: current.techCategories.map((entry) =>
-																entry.id === item.id
-																	? {
-																			...entry,
-																			items: event.target.value
-																				.split(",")
-																				.map((value) => value.trim())
-																				.filter(Boolean),
-																		}
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<div className="space-y-2">
-										<div className="text-xs text-muted-foreground">Search and add</div>
-										<div className="flex gap-2">
-											<Input
-												list={`tech-options-${item.id}`}
-												placeholder="Type technology name"
-												value={quickTechInput[item.id] ?? ""}
-												onChange={(event) =>
-													setQuickTechInput((current) => ({
-														...current,
-														[item.id]: event.target.value,
-													}))
-												}
-												onKeyDown={(event) => {
-													if (event.key === "Enter") {
-														event.preventDefault();
-														addQuickTechToCategory(item.id);
-													}
-												}}
-											/>
+							<div className="max-h-[30rem] space-y-4 overflow-y-auto pr-1">
+								{portfolio.techCategories.map((item, index) => {
+								const panelId = `tech-${item.id}`;
+								const isOpen = openPanels[panelId] ?? index === 0;
+								return (
+								<div key={item.id} className="space-y-3 rounded-xl bg-muted/20 p-4">
+									<div className="flex items-center justify-between gap-2">
+										<div className="space-y-0.5">
+											<div className="text-xs font-medium text-muted-foreground">
+												Category {index + 1}
+											</div>
+											<div className="text-sm font-medium">
+												{item.name || "Untitled category"}
+											</div>
+										</div>
+										<div className="flex items-center gap-1">
 											<Button
 												type="button"
-												variant="outline"
-												onClick={() => addQuickTechToCategory(item.id)}
+												variant="ghost"
+												size="sm"
+												onClick={() => togglePanel(panelId)}
 											>
-												Add
+												{isOpen ? (
+													<>
+														Collapse <ChevronUp className="size-3.5" />
+													</>
+												) : (
+													<>
+														Edit <ChevronDown className="size-3.5" />
+													</>
+												)}
 											</Button>
-											<datalist id={`tech-options-${item.id}`}>
-												{searchTechOptions(
-													quickTechInput[item.id] ?? item.name,
-													25,
-												).map((option) => (
-													<option key={`${item.id}-opt-${option}`} value={option} />
-												))}
-											</datalist>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	techCategories: current.techCategories.filter(
+																		(entry) => entry.id !== item.id,
+																	),
+																}
+															: current,
+													)
+												}
+											>
+												Remove category
+											</Button>
 										</div>
 									</div>
-									<div className="space-y-2">
-										<div className="text-xs text-muted-foreground">Quick add</div>
-										<div className="flex flex-wrap gap-2">
-											{getSuggestedTechForCategory(item.name, 12).map((techName) => {
-												const tech = getTechIcon(techName);
-												const hasTech = item.items.some(
-													(existing) =>
-														normalizeTechName(existing) ===
-														normalizeTechName(techName),
-												);
-												return (
+									{!isOpen ? (
+										<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
+											{item.items.length} tech item{item.items.length === 1 ? "" : "s"}
+										</div>
+									) : (
+										<>
+											<Input
+												placeholder="Category name"
+												value={item.name}
+												onChange={(event) =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	techCategories: current.techCategories.map((entry) =>
+																		entry.id === item.id
+																			? { ...entry, name: event.target.value }
+																			: entry,
+																	),
+																}
+															: current,
+													)
+												}
+											/>
+											<Input
+												placeholder="React, TypeScript, Tailwind"
+												value={item.items.join(", ")}
+												onChange={(event) =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	techCategories: current.techCategories.map((entry) =>
+																		entry.id === item.id
+																			? {
+																					...entry,
+																					items: event.target.value
+																						.split(",")
+																						.map((value) => value.trim())
+																						.filter(Boolean),
+																				}
+																			: entry,
+																	),
+																}
+															: current,
+													)
+												}
+											/>
+											<div className="space-y-2">
+												<div className="text-xs text-muted-foreground">Search and add</div>
+												<div className="flex gap-2">
+													<Input
+														list={`tech-options-${item.id}`}
+														placeholder="Type technology name"
+														value={quickTechInput[item.id] ?? ""}
+														onChange={(event) =>
+															setQuickTechInput((current) => ({
+																...current,
+																[item.id]: event.target.value,
+															}))
+														}
+														onKeyDown={(event) => {
+															if (event.key === "Enter") {
+																event.preventDefault();
+																addQuickTechToCategory(item.id);
+															}
+														}}
+													/>
 													<Button
-														key={`${item.id}-${techName}`}
 														type="button"
 														variant="outline"
-														size="sm"
-														disabled={hasTech}
-														onClick={() => addTechToCategory(item.id, techName)}
+														onClick={() => addQuickTechToCategory(item.id)}
 													>
-														{tech && <tech.Icon className={tech.className} />}
-														{techName}
+														Add
 													</Button>
-												);
-											})}
-										</div>
-									</div>
-									{item.items.length > 0 && (
-										<div className="flex flex-wrap gap-2">
-											{item.items.map((techName, techIndex) => (
-												<Button
-													key={`${item.id}-${techName}-${techIndex}`}
-													type="button"
-													variant="ghost"
-													size="sm"
-													onClick={() => removeTechFromCategory(item.id, techName)}
-												>
-													{techName}
-												</Button>
-											))}
-										</div>
+													<datalist id={`tech-options-${item.id}`}>
+														{searchTechOptions(
+															quickTechInput[item.id] ?? item.name,
+															25,
+														).map((option) => (
+															<option key={`${item.id}-opt-${option}`} value={option} />
+														))}
+													</datalist>
+												</div>
+											</div>
+											<div className="space-y-2">
+												<div className="text-xs text-muted-foreground">Quick add</div>
+												<div className="flex flex-wrap gap-2">
+													{getSuggestedTechForCategory(item.name, 12).map((techName) => {
+														const tech = getTechIcon(techName);
+														const hasTech = item.items.some(
+															(existing) =>
+																normalizeTechName(existing) ===
+																normalizeTechName(techName),
+														);
+														return (
+															<Button
+																key={`${item.id}-${techName}`}
+																type="button"
+																variant="outline"
+																size="sm"
+																disabled={hasTech}
+																onClick={() => addTechToCategory(item.id, techName)}
+															>
+																{tech && <tech.Icon className={tech.className} />}
+																{techName}
+															</Button>
+														);
+													})}
+												</div>
+											</div>
+											{item.items.length > 0 && (
+												<div className="flex flex-wrap gap-2">
+													{item.items.map((techName, techIndex) => (
+														<Button
+															key={`${item.id}-${techName}-${techIndex}`}
+															type="button"
+															variant="ghost"
+															size="sm"
+															onClick={() => removeTechFromCategory(item.id, techName)}
+														>
+															{techName}
+														</Button>
+													))}
+												</div>
+											)}
+										</>
 									)}
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										onClick={() =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															techCategories: current.techCategories.filter(
-																(entry) => entry.id !== item.id,
-															),
-														}
-													: current,
-											)
-										}
-									>
-										Remove category
-									</Button>
 								</div>
-							))}
+								);
+							})}
+							</div>
 						</CardContent>
 					</Card>
 
-					<Card className="border-border/70 shadow-none">
+					<Card className="shadow-none">
 						<CardHeader>
 							<CardTitle>Projects</CardTitle>
 							<CardDescription>Showcase your strongest work.</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-3">
+						<CardContent className="space-y-4">
 							<Button
 								type="button"
 								variant="outline"
@@ -1765,89 +1990,131 @@ export default function PortfolioEditorPage() {
 							>
 								Add project
 							</Button>
-							{portfolio.projects.map((item) => (
-								<div key={item.id} className="space-y-2 rounded-lg border p-3">
-									<Input
-										placeholder="Project name"
-										value={item.name}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															projects: current.projects.map((entry) =>
-																entry.id === item.id
-																	? { ...entry, name: event.target.value }
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<Input
-										placeholder="Short description"
-										value={item.description}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															projects: current.projects.map((entry) =>
-																entry.id === item.id
-																	? { ...entry, description: event.target.value }
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<Input
-										placeholder="Project URL"
-										value={item.url}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															projects: current.projects.map((entry) =>
-																entry.id === item.id
-																	? { ...entry, url: event.target.value }
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
-									<Button
-										type="button"
-										variant="ghost"
-										size="sm"
-										onClick={() =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															projects: current.projects.filter(
-																(entry) => entry.id !== item.id,
-															),
-														}
-													: current,
-											)
-										}
-									>
-										Remove project
-									</Button>
+							<div className="max-h-[30rem] space-y-4 overflow-y-auto pr-1">
+								{portfolio.projects.map((item, index) => {
+								const panelId = `project-${item.id}`;
+								const isOpen = openPanels[panelId] ?? index === 0;
+								return (
+								<div key={item.id} className="space-y-3 rounded-xl bg-muted/20 p-4">
+									<div className="flex items-center justify-between gap-2">
+										<div className="space-y-0.5">
+											<div className="text-xs font-medium text-muted-foreground">
+												Project {index + 1}
+											</div>
+											<div className="text-sm font-medium">
+												{item.name || "Untitled project"}
+											</div>
+										</div>
+										<div className="flex items-center gap-1">
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() => togglePanel(panelId)}
+											>
+												{isOpen ? (
+													<>
+														Collapse <ChevronUp className="size-3.5" />
+													</>
+												) : (
+													<>
+														Edit <ChevronDown className="size-3.5" />
+													</>
+												)}
+											</Button>
+											<Button
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	projects: current.projects.filter(
+																		(entry) => entry.id !== item.id,
+																	),
+																}
+															: current,
+													)
+												}
+											>
+												Remove project
+											</Button>
+										</div>
+									</div>
+									{!isOpen ? (
+										<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm text-muted-foreground">
+											{item.description?.trim() || item.url?.trim() || "No details yet."}
+										</div>
+									) : (
+										<>
+											<Input
+												placeholder="Project name"
+												value={item.name}
+												onChange={(event) =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	projects: current.projects.map((entry) =>
+																		entry.id === item.id
+																			? { ...entry, name: event.target.value }
+																			: entry,
+																	),
+																}
+															: current,
+													)
+												}
+											/>
+											<Input
+												placeholder="Short description"
+												value={item.description}
+												onChange={(event) =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	projects: current.projects.map((entry) =>
+																		entry.id === item.id
+																			? { ...entry, description: event.target.value }
+																			: entry,
+																	),
+																}
+															: current,
+													)
+												}
+											/>
+											<Input
+												placeholder="Project URL"
+												value={item.url}
+												onChange={(event) =>
+													setPortfolio((current) =>
+														current
+															? {
+																	...current,
+																	projects: current.projects.map((entry) =>
+																		entry.id === item.id
+																			? { ...entry, url: event.target.value }
+																			: entry,
+																	),
+																}
+															: current,
+													)
+												}
+											/>
+										</>
+									)}
 								</div>
-							))}
+								);
+							})}
+							</div>
 						</CardContent>
 					</Card>
 				</TabsContent>
 
-				<TabsContent value="layout" className="space-y-4">
-					<Card className="border-border/70 shadow-none">
+				<TabsContent value="layout" className="space-y-6">
+					<Card className="shadow-none">
 						<CardHeader>
 							<CardTitle>Layout canvas</CardTitle>
 							<CardDescription>
@@ -1858,7 +2125,7 @@ export default function PortfolioEditorPage() {
 						<CardContent className="space-y-4">
 							<div
 								ref={layoutContainerRef}
-								className="overflow-hidden rounded-xl border bg-muted/20"
+								className="overflow-hidden rounded-xl bg-muted/20"
 							>
 								<GridLayout
 									width={layoutWidth}
@@ -1922,11 +2189,11 @@ export default function PortfolioEditorPage() {
 									{getLayoutOrder(portfolio).map((sectionKey) => (
 										<div
 											key={sectionKey}
-											className={`h-full overflow-hidden rounded-xl border bg-background ${
+											className={`h-full overflow-hidden rounded-xl bg-background ${
 												draggingSection === sectionKey ? "ring-2 ring-(--app-accent)" : ""
 											}`}
 										>
-											<div className="layout-drag-handle mb-2 flex cursor-move items-center justify-between gap-2 border-b px-3 py-2">
+											<div className="layout-drag-handle mb-2 flex cursor-move items-center justify-between gap-2 bg-muted/35 px-3 py-2">
 												<div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
 													{SECTION_META[sectionKey].title}
 												</div>
@@ -1958,16 +2225,16 @@ export default function PortfolioEditorPage() {
 									))}
 								</GridLayout>
 							</div>
-							<div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+							<div className="rounded-lg bg-muted/35 px-3 py-2 text-xs text-muted-foreground">
 								Drag from the header area of each card. Content inside the card stays
 								scrollable if it exceeds the current card size.
 							</div>
-							<div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+							<div className="rounded-lg bg-muted/35 px-3 py-2 text-xs text-muted-foreground">
 								If a move or resize is constrained, you will see a hint after drop.
 								Resize from the bottom-right corner to change card width.
 							</div>
 							{getHiddenSections(portfolio).length > 0 && (
-								<div className="space-y-2 rounded-md border bg-muted/30 px-3 py-2">
+								<div className="space-y-2 rounded-lg bg-muted/35 px-3 py-2">
 									<div className="text-xs text-muted-foreground">
 										Hidden blocks
 									</div>
@@ -2052,7 +2319,7 @@ export default function PortfolioEditorPage() {
 									Apply current canvas
 								</Button>
 							</div>
-							<Card className="border-border/70 shadow-none">
+							<Card className="shadow-none">
 								<CardHeader>
 									<CardTitle className="text-base">Custom Section Editor</CardTitle>
 									<CardDescription>
@@ -2071,8 +2338,8 @@ export default function PortfolioEditorPage() {
 					</Card>
 				</TabsContent>
 
-				<TabsContent value="extras" className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-					<Card className="border-border/70 shadow-none">
+				<TabsContent value="extras" className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+					<Card className="shadow-none">
 						<CardHeader>
 							<CardTitle>Custom sections</CardTitle>
 							<CardDescription>Add extra content blocks.</CardDescription>
@@ -2080,13 +2347,13 @@ export default function PortfolioEditorPage() {
 						<CardContent>{renderCustomSectionsEditor()}</CardContent>
 					</Card>
 
-					<Card className="border-border/70 shadow-none">
+					<Card className="shadow-none">
 						<CardHeader>
 							<CardTitle>AI & chat</CardTitle>
 							<CardDescription>Control assistant features for this portfolio.</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
-							<div className="flex items-center gap-3 rounded-lg border p-3">
+							<div className="flex items-center gap-3 rounded-xl bg-muted/20 p-4">
 								<Checkbox
 									checked={portfolio.chatEnabled}
 									onCheckedChange={(checked) =>
@@ -2105,7 +2372,7 @@ export default function PortfolioEditorPage() {
 								</div>
 							</div>
 							<Separator />
-							<div className="space-y-2">
+							<div className="space-y-2 rounded-xl bg-muted/20 p-4">
 								<Label htmlFor="geminiApiKey">Optional Gemini API key</Label>
 								<Input
 									id="geminiApiKey"
@@ -2130,7 +2397,7 @@ export default function PortfolioEditorPage() {
 									Add your own key only if you want separate usage and limits.
 								</p>
 							</div>
-							<div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+							<div className="rounded-lg bg-muted/35 px-3 py-2 text-xs text-muted-foreground">
 								Tip: Save regularly, then open preview in a new tab to verify copy,
 								spacing, and links.
 							</div>

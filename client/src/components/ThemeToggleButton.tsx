@@ -20,7 +20,7 @@ export default function ThemeToggleButton() {
 		<button
 			type="button"
 			aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-			className="h-8 w-10 sm:h-9 sm:w-11 inline-flex items-center justify-center rounded-none border border-(--app-border) bg-(--app-surface-2) shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--app-accent) active:scale-[0.98]"
+			className="inline-flex h-7 w-9 items-center justify-center rounded-lg bg-background/80 transition-colors focus-visible:ring-2 focus-visible:ring-(--app-accent) focus-visible:outline-none active:scale-[0.98] sm:h-8 sm:w-10"
 			onClick={handleToggle}
 		>
 			{isDarkMode ? (

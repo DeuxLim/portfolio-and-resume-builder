@@ -23,7 +23,7 @@ const routes = createBrowserRouter([
 	},
 	{
 		path: "/sample",
-		element: <PortfolioLayout />,
+		element: <AppLayout />,
 		children: [{ index: true, Component: SamplePortfolioPage }],
 	},
 	{
