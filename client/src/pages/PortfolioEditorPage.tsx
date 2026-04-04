@@ -1975,19 +1975,24 @@ export default function PortfolioEditorPage() {
 												</div>
 											</div>
 											{item.items.length > 0 && (
-												<div className="flex flex-wrap gap-2">
-													{item.items.map((techName, techIndex) => (
-														<Button
-															key={`${item.id}-${techName}-${techIndex}`}
-															type="button"
-															variant="ghost"
-															size="sm"
-															className="font-semibold"
-															onClick={() => removeTechFromCategory(item.id, techName)}
-														>
-															{techName}
-														</Button>
-													))}
+												<div className="space-y-2 rounded-lg bg-background/70 p-3">
+													<div className="text-xs font-medium text-muted-foreground">
+														Selected tech (click to remove)
+													</div>
+													<div className="flex flex-wrap gap-2">
+														{item.items.map((techName, techIndex) => (
+															<Button
+																key={`${item.id}-${techName}-${techIndex}`}
+																type="button"
+																variant="ghost"
+																size="sm"
+																className="font-semibold"
+																onClick={() => removeTechFromCategory(item.id, techName)}
+															>
+																{techName}
+															</Button>
+														))}
+													</div>
 												</div>
 											)}
 										</>
