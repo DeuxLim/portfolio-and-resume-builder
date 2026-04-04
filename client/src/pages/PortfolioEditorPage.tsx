@@ -1960,13 +1960,15 @@ export default function PortfolioEditorPage() {
 															<Button
 																key={`${item.id}-${techName}`}
 																type="button"
-																variant="outline"
+																variant={hasTech ? "secondary" : "outline"}
 																size="sm"
 																disabled={hasTech}
+																className={hasTech ? "font-semibold opacity-100" : ""}
 																onClick={() => addTechToCategory(item.id, techName)}
 															>
 																{tech && <tech.Icon className={tech.className} />}
 																{techName}
+																{hasTech ? " (Selected)" : ""}
 															</Button>
 														);
 													})}
@@ -1980,6 +1982,7 @@ export default function PortfolioEditorPage() {
 															type="button"
 															variant="ghost"
 															size="sm"
+															className="font-semibold"
 															onClick={() => removeTechFromCategory(item.id, techName)}
 														>
 															{techName}
