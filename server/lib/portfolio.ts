@@ -96,9 +96,22 @@ const normalizeLayout = (
 			nextSpans[section] = value;
 		}
 	}
+	const nextHeights = { ...fallback.sectionHeights };
+	const rawHeights =
+		parsed?.sectionHeights && typeof parsed.sectionHeights === "object"
+			? parsed.sectionHeights
+			: {};
+	for (const section of fallback.sectionOrder) {
+		const height = Number((rawHeights as Record<string, unknown>)[section]);
+		if (Number.isFinite(height)) {
+			const safeHeight = Math.min(48, Math.max(4, Math.round(height)));
+			nextHeights[section] = safeHeight;
+		}
+	}
 	return {
 		sectionOrder: deduped,
 		sectionSpans: nextSpans,
+		sectionHeights: nextHeights,
 	};
 };
 

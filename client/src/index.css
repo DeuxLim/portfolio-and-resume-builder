@@ -226,6 +226,25 @@
 		transition: box-shadow 180ms ease;
 	}
 
+	.react-grid-item > * {
+		min-width: 0;
+		max-width: 100%;
+	}
+
+	.layout-scroll-content {
+		overscroll-behavior: contain;
+	}
+
+	.layout-scroll-content > * {
+		min-width: 0;
+		max-width: 100%;
+	}
+
+	.layout-scroll-content :is(p, span, a, code) {
+		overflow-wrap: anywhere;
+		word-break: break-word;
+	}
+
 	.react-grid-item.react-draggable-dragging {
 		z-index: 20;
 		box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);

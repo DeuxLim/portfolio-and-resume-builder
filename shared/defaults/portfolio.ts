@@ -55,9 +55,18 @@ export const defaultPortfolioLayout: PortfolioLayout = {
 		timeline: 4,
 		experience: 8,
 		tech: 4,
-		projects: 8,
+		projects: 12,
 		heatmap: 6,
 		custom: 6,
+	},
+	sectionHeights: {
+		about: 7,
+		timeline: 7,
+		experience: 7,
+		tech: 7,
+		projects: 6,
+		heatmap: 5,
+		custom: 5,
 	},
 };
 

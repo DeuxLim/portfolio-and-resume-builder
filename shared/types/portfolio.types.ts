@@ -47,6 +47,7 @@ export type PortfolioSectionSpan = 4 | 6 | 8 | 12;
 export type PortfolioLayout = {
 	sectionOrder: PortfolioSectionKey[];
 	sectionSpans: Partial<Record<PortfolioSectionKey, PortfolioSectionSpan>>;
+	sectionHeights: Partial<Record<PortfolioSectionKey, number>>;
 };
 
 export type PortfolioRecord = {

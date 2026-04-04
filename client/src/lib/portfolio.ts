@@ -61,6 +61,10 @@ export const cloneEditablePortfolio = (
 			...defaultPortfolioLayout.sectionSpans,
 			...(portfolio.layout?.sectionSpans ?? {}),
 		},
+		sectionHeights: {
+			...defaultPortfolioLayout.sectionHeights,
+			...(portfolio.layout?.sectionHeights ?? {}),
+		},
 	},
 	about: [...portfolio.about],
 	timeline: portfolio.timeline.map((item) => ({ ...item })),

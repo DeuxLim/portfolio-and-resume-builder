@@ -77,6 +77,24 @@ const normalizeSectionSpans = (
 	return base;
 };
 
+const normalizeSectionHeights = (
+	value: unknown,
+): Partial<Record<PortfolioSectionKey, number>> => {
+	const base = { ...defaultPortfolioLayout.sectionHeights };
+	const input =
+		value && typeof value === "object"
+			? (value as Partial<Record<PortfolioSectionKey, unknown>>)
+			: {};
+
+	for (const sectionKey of defaultPortfolioLayout.sectionOrder) {
+		const parsed = Number(input[sectionKey]);
+		if (!Number.isFinite(parsed)) continue;
+		base[sectionKey] = Math.min(48, Math.max(4, Math.round(parsed)));
+	}
+
+	return base;
+};
+
 const sanitizeEditablePortfolio = (
 	value: unknown,
 	username: string,
@@ -147,6 +165,7 @@ const sanitizeEditablePortfolio = (
 		layout: {
 			sectionOrder: normalizeSectionOrder(input.layout?.sectionOrder),
 			sectionSpans: normalizeSectionSpans(input.layout?.sectionSpans),
+			sectionHeights: normalizeSectionHeights(input.layout?.sectionHeights),
 		},
 		chatEnabled: Boolean(input.chatEnabled),
 		geminiApiKey: String(input.geminiApiKey ?? ""),

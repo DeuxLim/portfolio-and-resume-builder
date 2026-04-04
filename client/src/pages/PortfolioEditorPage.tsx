@@ -88,15 +88,8 @@ const SECTION_META: Record<
 
 const GRID_COLS = 12;
 const GRID_ALLOWED_SPANS: PortfolioSectionSpan[] = [4, 6, 8, 12];
-const SECTION_GRID_HEIGHT: Record<PortfolioSectionKey, number> = {
-	about: 5,
-	timeline: 6,
-	experience: 7,
-	tech: 6,
-	projects: 6,
-	heatmap: 5,
-	custom: 5,
-};
+const GRID_MIN_HEIGHT = 4;
+const GRID_MAX_HEIGHT = 48;
 
 export default function PortfolioEditorPage() {
 	const navigate = useNavigate();
@@ -108,9 +101,19 @@ export default function PortfolioEditorPage() {
 	const [layoutFeedback, setLayoutFeedback] = useState("");
 	const [draggingSection, setDraggingSection] = useState<PortfolioSectionKey | null>(null);
 	const [canvasLayout, setCanvasLayout] = useState<GridLayoutModel>([]);
-	const { width: layoutWidth, containerRef: layoutContainerRef } = useContainerWidth({
+	const [activeTab, setActiveTab] = useState("profile");
+	const [pendingAutoFit, setPendingAutoFit] = useState(false);
+	const { width: layoutWidth, containerRef: layoutContainerRef, measureWidth } =
+		useContainerWidth({
 		measureBeforeMount: false,
+		initialWidth: 0,
 	});
+	const sectionContentRefs = useRef<
+		Partial<Record<PortfolioSectionKey, HTMLDivElement | null>>
+	>(
+		{},
+	);
+	const hasAutoFittedDefaultLayout = useRef(false);
 	const avatarInputRef = useRef<HTMLInputElement | null>(null);
 	const coverInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -136,6 +139,138 @@ export default function PortfolioEditorPage() {
 			setPortfolio(cloneEditablePortfolio(portfolioQuery.data));
 		}
 	}, [portfolioQuery.data]);
+
+	useEffect(() => {
+		if (activeTab !== "layout") return;
+		let timeoutId: ReturnType<typeof setTimeout> | null = null;
+		const rafId = requestAnimationFrame(() => {
+			measureWidth();
+			timeoutId = setTimeout(() => measureWidth(), 80);
+		});
+		return () => {
+			cancelAnimationFrame(rafId);
+			if (timeoutId) clearTimeout(timeoutId);
+		};
+	}, [activeTab, measureWidth]);
+
+	const toGridRowsFromPixels = (pixelHeight: number) =>
+		Math.ceil(pixelHeight / (26 + 12));
+
+	const buildRowNormalizedHeights = (
+		order: PortfolioSectionKey[],
+		spans: Record<PortfolioSectionKey, PortfolioSectionSpan>,
+		heights: Record<PortfolioSectionKey, number>,
+	): Record<PortfolioSectionKey, number> => {
+		const normalized = { ...heights };
+		let cursorX = 0;
+		let rowSections: PortfolioSectionKey[] = [];
+		let rowMax = GRID_MIN_HEIGHT;
+
+		const flushRow = () => {
+			for (const section of rowSections) {
+				normalized[section] = rowMax;
+			}
+		};
+
+		for (const section of order) {
+			const span = spans[section];
+			if (cursorX + span > GRID_COLS) {
+				flushRow();
+				rowSections = [];
+				rowMax = GRID_MIN_HEIGHT;
+				cursorX = 0;
+			}
+
+			rowSections.push(section);
+			rowMax = Math.max(rowMax, heights[section]);
+			cursorX += span;
+		}
+
+		flushRow();
+		return normalized;
+	};
+
+	const autoFitCanvasHeights = () => {
+		setPortfolio((current) => {
+			if (!current) return current;
+
+			const order = getLayoutOrder(current);
+			const spans = resolveSectionSpanRecord(current);
+			const currentHeights = resolveSectionHeightRecord(current);
+			const measuredHeights = { ...currentHeights };
+
+			for (const section of order) {
+				const contentNode = sectionContentRefs.current[section];
+				if (!contentNode) continue;
+				const overflowPx = Math.max(
+					0,
+					contentNode.scrollHeight - contentNode.clientHeight,
+				);
+				if (overflowPx <= 0) continue;
+				const additionalRows = toGridRowsFromPixels(overflowPx + 8);
+				measuredHeights[section] = clampSectionHeight(
+					currentHeights[section] + additionalRows,
+				);
+			}
+
+			const normalizedHeights = buildRowNormalizedHeights(
+				order,
+				spans,
+				measuredHeights,
+			);
+
+			return {
+				...current,
+				layout: {
+					...current.layout,
+					sectionHeights: normalizedHeights,
+				},
+			};
+		});
+	};
+
+	const isDefaultLayoutConfig = (source: EditablePortfolio) => {
+		const currentOrder = getLayoutOrder(source);
+		const defaultOrder = defaultPortfolioLayout.sectionOrder;
+		if (currentOrder.length !== defaultOrder.length) return false;
+		for (let i = 0; i < defaultOrder.length; i += 1) {
+			if (currentOrder[i] !== defaultOrder[i]) return false;
+		}
+		for (const section of defaultOrder) {
+			if (getSectionSpan(source, section) !== defaultPortfolioLayout.sectionSpans[section]) {
+				return false;
+			}
+			if (getSectionHeight(source, section) !== defaultPortfolioLayout.sectionHeights[section]) {
+				return false;
+			}
+		}
+		return true;
+	};
+
+	useEffect(() => {
+		if (!pendingAutoFit || activeTab !== "layout") return;
+		let timeoutId: ReturnType<typeof setTimeout> | null = null;
+		let timeoutId2: ReturnType<typeof setTimeout> | null = null;
+		const rafId = requestAnimationFrame(() => {
+			autoFitCanvasHeights();
+			timeoutId = setTimeout(() => autoFitCanvasHeights(), 80);
+			timeoutId2 = setTimeout(() => autoFitCanvasHeights(), 220);
+			setPendingAutoFit(false);
+		});
+		return () => {
+			cancelAnimationFrame(rafId);
+			if (timeoutId) clearTimeout(timeoutId);
+			if (timeoutId2) clearTimeout(timeoutId2);
+		};
+	}, [activeTab, pendingAutoFit]);
+
+	useEffect(() => {
+		if (activeTab !== "layout" || !portfolio) return;
+		if (hasAutoFittedDefaultLayout.current) return;
+		if (!isDefaultLayoutConfig(portfolio)) return;
+		hasAutoFittedDefaultLayout.current = true;
+		setPendingAutoFit(true);
+	}, [activeTab, portfolio]);
 
 	const saveMutation = useMutation({
 		mutationFn: async () => {
@@ -297,6 +432,20 @@ export default function PortfolioEditorPage() {
 		return nearest;
 	};
 
+	const clampSectionHeight = (value: number) =>
+		Math.min(GRID_MAX_HEIGHT, Math.max(GRID_MIN_HEIGHT, Math.round(value)));
+
+	const getSectionHeight = (
+		source: EditablePortfolio,
+		sectionKey: PortfolioSectionKey,
+	): number => {
+		const height = Number(source.layout?.sectionHeights?.[sectionKey]);
+		if (Number.isFinite(height)) {
+			return clampSectionHeight(height);
+		}
+		return clampSectionHeight(defaultPortfolioLayout.sectionHeights[sectionKey] ?? 6);
+	};
+
 	const resolveSectionSpanRecord = (
 		source: EditablePortfolio,
 	): Record<PortfolioSectionKey, PortfolioSectionSpan> => ({
@@ -309,6 +458,18 @@ export default function PortfolioEditorPage() {
 		custom: getSectionSpan(source, "custom"),
 	});
 
+	const resolveSectionHeightRecord = (
+		source: EditablePortfolio,
+	): Record<PortfolioSectionKey, number> => ({
+		about: getSectionHeight(source, "about"),
+		timeline: getSectionHeight(source, "timeline"),
+		experience: getSectionHeight(source, "experience"),
+		tech: getSectionHeight(source, "tech"),
+		projects: getSectionHeight(source, "projects"),
+		heatmap: getSectionHeight(source, "heatmap"),
+		custom: getSectionHeight(source, "custom"),
+	});
+
 	const buildGridLayoutFromPortfolio = (source: EditablePortfolio): GridLayoutModel => {
 		const order = getLayoutOrder(source);
 		let cursorX = 0;
@@ -317,7 +478,7 @@ export default function PortfolioEditorPage() {
 
 		return order.map((sectionKey) => {
 			const w = getSectionSpan(source, sectionKey);
-			const h = SECTION_GRID_HEIGHT[sectionKey] ?? 6;
+			const h = getSectionHeight(source, sectionKey);
 
 			if (cursorX + w > GRID_COLS) {
 				cursorX = 0;
@@ -333,7 +494,8 @@ export default function PortfolioEditorPage() {
 				h,
 				minW: 4,
 				maxW: GRID_COLS,
-				minH: 4,
+				minH: GRID_MIN_HEIGHT,
+				maxH: GRID_MAX_HEIGHT,
 				isBounded: true,
 			};
 
@@ -349,7 +511,10 @@ export default function PortfolioEditorPage() {
 		const spans = getLayoutOrder(portfolio)
 			.map((key) => `${key}:${getSectionSpan(portfolio, key)}`)
 			.join("|");
-		return `${order}__${spans}`;
+		const heights = getLayoutOrder(portfolio)
+			.map((key) => `${key}:${getSectionHeight(portfolio, key)}`)
+			.join("|");
+		return `${order}__${spans}__${heights}`;
 	}, [portfolio]);
 
 	useEffect(() => {
@@ -375,12 +540,21 @@ export default function PortfolioEditorPage() {
 				},
 				resolveSectionSpanRecord(current),
 			);
+			const nextHeights = sorted.reduce<Record<PortfolioSectionKey, number>>(
+				(acc, item) => {
+					const key = item.i as PortfolioSectionKey;
+					acc[key] = clampSectionHeight(item.h);
+					return acc;
+				},
+				resolveSectionHeightRecord(current),
+			);
 
 			return {
 				...current,
 				layout: {
 					sectionOrder: nextOrder,
 					sectionSpans: nextSpans,
+					sectionHeights: nextHeights,
 				},
 			};
 		});
@@ -482,7 +656,7 @@ export default function PortfolioEditorPage() {
 				)}
 			</Card>
 
-			<Tabs defaultValue="profile" className="space-y-4">
+			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
 				<TabsList className="w-full justify-start" variant="line">
 					<TabsTrigger value="profile">Profile</TabsTrigger>
 					<TabsTrigger value="story">Story</TabsTrigger>
@@ -1254,14 +1428,14 @@ export default function PortfolioEditorPage() {
 						<CardHeader>
 							<CardTitle>Layout canvas</CardTitle>
 							<CardDescription>
-								Drag anywhere on each block to reposition. Resize from the bottom-right
+								Drag from each block header to reposition. Resize from the bottom-right
 								handle to change width.
 							</CardDescription>
 						</CardHeader>
 						<CardContent className="space-y-4">
 							<div
 								ref={layoutContainerRef}
-								className="overflow-x-hidden rounded-xl border bg-muted/20 p-2"
+								className="overflow-hidden rounded-xl border bg-muted/20"
 							>
 								<GridLayout
 									width={layoutWidth}
@@ -1276,6 +1450,7 @@ export default function PortfolioEditorPage() {
 									dragConfig={{
 										enabled: true,
 										bounded: true,
+										handle: ".layout-drag-handle",
 									}}
 									resizeConfig={{
 										enabled: true,
@@ -1327,7 +1502,7 @@ export default function PortfolioEditorPage() {
 												draggingSection === sectionKey ? "ring-2 ring-(--app-accent)" : ""
 											}`}
 										>
-											<div className="mb-2 flex items-center justify-between gap-2 border-b px-3 py-2">
+											<div className="layout-drag-handle mb-2 flex cursor-move items-center justify-between gap-2 border-b px-3 py-2">
 												<div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
 													{SECTION_META[sectionKey].title}
 												</div>
@@ -1335,7 +1510,12 @@ export default function PortfolioEditorPage() {
 													{getSectionSpan(portfolio, sectionKey)} / 12
 												</div>
 											</div>
-											<div className="pointer-events-none h-[calc(100%-44px)] min-w-0 overflow-auto overflow-x-hidden px-3 pb-3 [overflow-wrap:anywhere]">
+											<div
+												ref={(node) => {
+													sectionContentRefs.current[sectionKey] = node;
+												}}
+												className="layout-scroll-content h-[calc(100%-44px)] min-w-0 max-w-full overflow-auto px-3 pb-3 [overflow-wrap:anywhere]"
+											>
 												{getCanvasSectionContent(sectionKey, portfolio)}
 											</div>
 										</div>
@@ -1343,8 +1523,8 @@ export default function PortfolioEditorPage() {
 								</GridLayout>
 							</div>
 							<div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-								Drag any card directly. The card itself is the placement preview, and
-								sibling blocks reflow in real time.
+								Drag from the header area of each card. Content inside the card stays
+								scrollable if it exceeds the current card size.
 							</div>
 							<div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
 								If a move or resize is constrained, you will see a hint after drop.
@@ -1380,14 +1560,29 @@ export default function PortfolioEditorPage() {
 														layout: {
 															sectionOrder: [...defaultPortfolioLayout.sectionOrder],
 															sectionSpans: { ...defaultPortfolioLayout.sectionSpans },
+															sectionHeights: { ...defaultPortfolioLayout.sectionHeights },
 														},
 													}
 												: current,
 										);
-										setLayoutFeedback("Reset to default order and width.");
+										setPendingAutoFit(true);
+										setLayoutFeedback(
+											"Reset to defaults, then auto-fit heights to content.",
+										);
 									}}
 								>
 									Reset to default layout
+								</Button>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => {
+										setPendingAutoFit(true);
+										setLayoutFeedback("Auto-fitting block heights to content...");
+									}}
+								>
+									Auto-fit heights
 								</Button>
 								<Button
 									type="button"
