@@ -17,11 +17,16 @@ import {
 	normalizeTechName,
 	searchTechOptions,
 } from "@/lib/tech";
-import type { EditablePortfolio } from "../../../shared/types/portfolio.types";
+import type {
+	EditablePortfolio,
+	PortfolioVersionDetail,
+	PortfolioVersionSummary,
+} from "../../../shared/types/portfolio.types";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
+	CardAction,
 	CardContent,
 	CardDescription,
 	CardHeader,
@@ -33,12 +38,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { ChevronDown, ChevronUp, Layers3, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Layers3, Save, X } from "lucide-react";
 import GridLayout, {
 	type Layout as GridLayoutModel,
 	type LayoutItem as GridLayoutItem,
 } from "react-grid-layout";
 import { getAvatarUrl, resolveAssetUrl } from "@/lib/assets";
+import { cn } from "@/lib/utils";
 import { defaultPortfolioLayout } from "../../../shared/defaults/portfolio";
 import type {
 	CustomSection,
@@ -94,12 +100,17 @@ const MAX_CUSTOM_SECTIONS = 8;
 
 export default function PortfolioEditorPage() {
 	const navigate = useNavigate();
-	const [searchParams, setSearchParams] = useSearchParams();
+	const [searchParams] = useSearchParams();
 	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
-	const shouldCreateVersionOnSave = searchParams.get("newVersion") === "1";
+	const selectedVersionId = Number(searchParams.get("versionId"));
+	const hasSelectedVersionId =
+		Number.isFinite(selectedVersionId) && selectedVersionId > 0;
 	const [portfolio, setPortfolio] = useState<EditablePortfolio | null>(null);
-	const [statusMessage, setStatusMessage] = useState("");
+	const [toast, setToast] = useState<{
+		type: "success" | "error";
+		message: string;
+	} | null>(null);
 	const [quickTechInput, setQuickTechInput] = useState<Record<string, string>>({});
 	const [layoutFeedback, setLayoutFeedback] = useState("");
 	const [draggingSection, setDraggingSection] = useState<PortfolioSectionKey | null>(null);
@@ -134,6 +145,28 @@ export default function PortfolioEditorPage() {
 		enabled: Boolean(sessionQuery.data?.user),
 	});
 
+	const versionsQuery = useQuery({
+		queryKey: ["my-portfolio-versions"],
+		queryFn: async () => {
+			const { data } = await api.get<{ versions: PortfolioVersionSummary[] }>(
+				"/portfolios/me/versions",
+			);
+			return data.versions;
+		},
+		enabled: Boolean(sessionQuery.data?.user),
+	});
+
+	const versionDetailQuery = useQuery({
+		queryKey: ["my-portfolio-version", selectedVersionId],
+		queryFn: async () => {
+			const { data } = await api.get<PortfolioVersionDetail>(
+				`/portfolios/me/versions/${selectedVersionId}`,
+			);
+			return data;
+		},
+		enabled: Boolean(sessionQuery.data?.user) && hasSelectedVersionId,
+	});
+
 	useEffect(() => {
 		if (sessionQuery.isSuccess && !sessionQuery.data?.user) {
 			navigate("/login");
@@ -141,10 +174,29 @@ export default function PortfolioEditorPage() {
 	}, [navigate, sessionQuery.data, sessionQuery.isSuccess]);
 
 	useEffect(() => {
-		if (portfolioQuery.data) {
-			setPortfolio(cloneEditablePortfolio(portfolioQuery.data));
+		if (!toast) return;
+		const timeoutId = window.setTimeout(() => setToast(null), 2400);
+		return () => window.clearTimeout(timeoutId);
+	}, [toast]);
+
+	useEffect(() => {
+		if (hasSelectedVersionId) {
+			if (!versionDetailQuery.data) return;
+			setPortfolio(cloneEditablePortfolio(versionDetailQuery.data.portfolio));
+			return;
 		}
-	}, [portfolioQuery.data]);
+		if (!portfolioQuery.data) return;
+		setPortfolio(cloneEditablePortfolio(portfolioQuery.data));
+	}, [hasSelectedVersionId, portfolioQuery.data, versionDetailQuery.data]);
+
+	useEffect(() => {
+		if (!hasSelectedVersionId || !versionDetailQuery.isError) return;
+		setToast({
+			type: "error",
+			message: "Selected version was not found. Redirected to live editor.",
+		});
+		navigate("/dashboard/edit", { replace: true });
+	}, [hasSelectedVersionId, navigate, versionDetailQuery.isError]);
 
 	useEffect(() => {
 		if (activeTab !== "layout") return;
@@ -293,46 +345,47 @@ export default function PortfolioEditorPage() {
 				throw new Error("Portfolio data is not ready.");
 			}
 
+			if (
+				hasSelectedVersionId &&
+				versionDetailQuery.data?.version &&
+				!versionDetailQuery.data.version.isActive
+			) {
+				const { data } = await api.put<PortfolioVersionDetail>(
+					`/portfolios/me/versions/${selectedVersionId}/snapshot`,
+					{ portfolio },
+				);
+				return { portfolio: data.portfolio, savedDraft: true };
+			}
+
 			const { data } = await api.put<{ portfolio: EditablePortfolio }>(
 				"/portfolios/me",
 				{ portfolio },
 			);
-
-			let createdVersion = false;
-			let versionCreateFailed = false;
-
-			if (shouldCreateVersionOnSave) {
-				try {
-					await api.post("/portfolios/me/versions", {});
-					createdVersion = true;
-				} catch {
-					versionCreateFailed = true;
-				}
-			}
-
-			return { portfolio: data.portfolio, createdVersion, versionCreateFailed };
+			return { portfolio: data.portfolio, savedDraft: false };
 		},
 		onSuccess: async (result) => {
-			if (result.versionCreateFailed) {
-				setStatusMessage(
-					"Saved active portfolio, but failed to create a new version. Save again to retry.",
-				);
-			} else if (result.createdVersion) {
-				setStatusMessage("Saved. New version created.");
-			} else {
-				setStatusMessage("Saved. Your active portfolio is updated.");
-			}
+			setToast({
+				type: "success",
+				message: result.savedDraft
+					? "Saved. Draft version updated."
+					: "Saved. Your live portfolio is updated.",
+			});
 
 			setPortfolio(cloneEditablePortfolio(result.portfolio));
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio"] });
 			await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
-
-			if (result.createdVersion) {
-				await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
-				const nextSearchParams = new URLSearchParams(searchParams);
-				nextSearchParams.delete("newVersion");
-				setSearchParams(nextSearchParams, { replace: true });
+			await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
+			if (hasSelectedVersionId) {
+				await queryClient.invalidateQueries({
+					queryKey: ["my-portfolio-version", selectedVersionId],
+				});
 			}
+		},
+		onError: () => {
+			setToast({
+				type: "error",
+				message: "Save failed. Please try again.",
+			});
 		},
 	});
 
@@ -348,13 +401,16 @@ export default function PortfolioEditorPage() {
 			return data;
 		},
 		onSuccess: async (data) => {
-			setStatusMessage("Profile photo uploaded.");
+			setToast({ type: "success", message: "Profile photo uploaded." });
 			setPortfolio(cloneEditablePortfolio(data.portfolio));
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio"] });
 			await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
 		},
 		onError: () => {
-			setStatusMessage("Upload failed. Please use JPG, PNG, WEBP, or GIF under 3MB.");
+			setToast({
+				type: "error",
+				message: "Upload failed. Please use JPG, PNG, WEBP, or GIF under 3MB.",
+			});
 		},
 	});
 
@@ -370,15 +426,33 @@ export default function PortfolioEditorPage() {
 			return data;
 		},
 		onSuccess: async (data) => {
-			setStatusMessage("Cover image uploaded.");
+			setToast({ type: "success", message: "Cover image uploaded." });
 			setPortfolio(cloneEditablePortfolio(data.portfolio));
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio"] });
 			await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
 		},
 		onError: () => {
-			setStatusMessage("Upload failed. Please use JPG, PNG, WEBP, or GIF under 5MB.");
+			setToast({
+				type: "error",
+				message: "Upload failed. Please use JPG, PNG, WEBP, or GIF under 5MB.",
+			});
 		},
 	});
+
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			const isSaveKey =
+				(event.ctrlKey || event.metaKey) &&
+				event.key.toLowerCase() === "s" &&
+				!event.altKey;
+			if (!isSaveKey) return;
+			event.preventDefault();
+			if (!portfolio || saveMutation.isPending) return;
+			saveMutation.mutate();
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [portfolio, saveMutation]);
 
 	const setBasicField = (
 		key:
@@ -1139,47 +1213,82 @@ export default function PortfolioEditorPage() {
 		);
 	};
 
-	if (sessionQuery.isLoading || portfolioQuery.isLoading) {
+	if (
+		sessionQuery.isLoading ||
+		portfolioQuery.isLoading ||
+		(hasSelectedVersionId && versionDetailQuery.isLoading)
+	) {
 		return <div className="app-card p-6">Loading editor...</div>;
 	}
 	if (!portfolio) return null;
 
+	const activeVersion = versionsQuery.data?.find((version) => version.isActive) ?? null;
+	const selectedVersionSummary = versionDetailQuery.data?.version ?? null;
+	const editingVersion = hasSelectedVersionId
+		? selectedVersionSummary
+		: activeVersion;
+	const editingVersionName = editingVersion?.name ?? "Version";
+	const editingVersionIsLive = Boolean(editingVersion?.isActive);
+
 	return (
 		<main className="space-y-5 pb-10">
+			{toast ? (
+				<div className="fixed right-4 top-4 z-50">
+					<div
+						className={
+							toast.type === "error"
+								? "rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700 shadow-lg"
+								: "rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700 shadow-lg"
+						}
+					>
+						{toast.message}
+					</div>
+				</div>
+			) : null}
 			<Card className="bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-transparent shadow-none">
-				<CardHeader className="gap-4 md:flex-row md:items-start md:justify-between">
+				<CardHeader className="gap-3">
 					<div className="space-y-2">
 						<Badge variant="secondary" className="w-fit">
 							<Layers3 className="mr-1 size-3.5" />
 							Portfolio Editor
 						</Badge>
-						<CardTitle className="text-2xl sm:text-3xl">
-							Craft your best public profile
-						</CardTitle>
+						<div className="flex flex-wrap items-center gap-2">
+							<CardTitle className="text-xl sm:text-2xl">
+								Editing: {editingVersionName}
+							</CardTitle>
+							<Badge
+								variant={editingVersionIsLive ? "secondary" : "outline"}
+								className={
+									editingVersionIsLive
+										? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+										: undefined
+								}
+							>
+								{editingVersionIsLive ? "Live" : "Draft"}
+							</Badge>
+						</div>
 						<CardDescription>
 							Public URL: <span className="font-medium">/{portfolio.username}</span>
 						</CardDescription>
 					</div>
-					<div className="flex flex-wrap gap-2">
+					<CardAction className="flex flex-wrap items-center justify-end gap-2">
+						<span className="text-xs text-muted-foreground">
+							Tip: <span className="font-medium">Ctrl/Cmd + S</span>
+						</span>
 						<Button
 							type="button"
+							size="sm"
 							onClick={() => saveMutation.mutate()}
 							disabled={saveMutation.isPending}
 						>
+							<Save className="size-4" />
 							{saveMutation.isPending ? "Saving..." : "Save changes"}
 						</Button>
-					</div>
+					</CardAction>
 				</CardHeader>
-				{statusMessage && (
-					<CardContent>
-						<div className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
-							{statusMessage}
-						</div>
-					</CardContent>
-				)}
 			</Card>
 
-			<Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-7">
+			<Tabs value={activeTab} onValueChange={setActiveTab} className="gap-3">
 				<TabsList
 					className="w-full justify-start gap-1 overflow-x-auto rounded-xl bg-background/80 p-1"
 					variant="line"
@@ -1195,8 +1304,10 @@ export default function PortfolioEditorPage() {
 				<TabsContent value="profile" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
 					<Card className="shadow-none">
 						<CardHeader>
-							<CardTitle>Identity</CardTitle>
-							<CardDescription>Your name, headline, and contact basics.</CardDescription>
+							<div>
+								<CardTitle>Identity</CardTitle>
+								<CardDescription>Your name, headline, and contact basics.</CardDescription>
+							</div>
 						</CardHeader>
 						<CardContent className="space-y-4">
 							{[
@@ -1375,10 +1486,12 @@ export default function PortfolioEditorPage() {
 				<TabsContent value="story" className="space-y-6">
 					<Card className="shadow-none">
 						<CardHeader>
-							<CardTitle>About section</CardTitle>
-							<CardDescription>
-								Write short paragraphs focused on impact and clarity.
-							</CardDescription>
+							<div>
+								<CardTitle>About section</CardTitle>
+								<CardDescription>
+									Write short paragraphs focused on impact and clarity.
+								</CardDescription>
+							</div>
 						</CardHeader>
 						<CardContent className="space-y-4">
 							<div className="max-h-[30rem] space-y-4 overflow-y-auto pr-1">
@@ -1469,8 +1582,10 @@ export default function PortfolioEditorPage() {
 				<TabsContent value="career" className="grid grid-cols-1 gap-6 xl:grid-cols-2">
 					<Card className="shadow-none">
 						<CardHeader>
-							<CardTitle>Timeline</CardTitle>
-							<CardDescription>Career milestones and key dates.</CardDescription>
+							<div>
+								<CardTitle>Timeline</CardTitle>
+								<CardDescription>Career milestones and key dates.</CardDescription>
+							</div>
 						</CardHeader>
 						<CardContent className="space-y-4">
 							<Button
@@ -1820,8 +1935,10 @@ export default function PortfolioEditorPage() {
 				<TabsContent value="stack" className="grid grid-cols-1 gap-6 xl:grid-cols-2">
 					<Card className="shadow-none">
 						<CardHeader>
-							<CardTitle>Tech stack</CardTitle>
-							<CardDescription>Group skills by category.</CardDescription>
+							<div>
+								<CardTitle>Tech stack</CardTitle>
+								<CardDescription>Group skills by category.</CardDescription>
+							</div>
 						</CardHeader>
 						<CardContent className="space-y-4">
 							<Button
@@ -2183,11 +2300,13 @@ export default function PortfolioEditorPage() {
 				<TabsContent value="layout" className="space-y-6">
 					<Card className="shadow-none">
 						<CardHeader>
-							<CardTitle>Layout canvas</CardTitle>
-							<CardDescription>
-								Drag from each block header to reposition. Resize from the bottom-right
-								handle to change width.
-							</CardDescription>
+							<div>
+								<CardTitle>Layout canvas</CardTitle>
+								<CardDescription>
+									Drag from each block header to reposition. Resize from the bottom-right
+									handle to change width.
+								</CardDescription>
+							</div>
 						</CardHeader>
 						<CardContent className="space-y-4">
 							<div className="rounded-lg bg-muted/35 px-3 py-2 text-xs text-muted-foreground">
@@ -2409,8 +2528,10 @@ export default function PortfolioEditorPage() {
 				<TabsContent value="extras" className="grid grid-cols-1 gap-6 xl:grid-cols-2">
 					<Card className="shadow-none">
 						<CardHeader>
-							<CardTitle>Custom sections</CardTitle>
-							<CardDescription>Add extra content blocks.</CardDescription>
+							<div>
+								<CardTitle>Custom sections</CardTitle>
+								<CardDescription>Add extra content blocks.</CardDescription>
+							</div>
 						</CardHeader>
 						<CardContent>{renderCustomSectionsEditor()}</CardContent>
 					</Card>
