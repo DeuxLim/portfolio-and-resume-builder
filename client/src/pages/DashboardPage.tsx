@@ -5,7 +5,7 @@ import type {
 	PortfolioVersionSummary,
 } from "../../../shared/types/portfolio.types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -29,6 +29,10 @@ export default function DashboardPage() {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
+	const [versionToDelete, setVersionToDelete] = useState<{
+		id: number;
+		name: string;
+	} | null>(null);
 
 	useEffect(() => {
 		if (sessionQuery.isSuccess && !sessionQuery.data?.user) {
@@ -71,6 +75,7 @@ export default function DashboardPage() {
 		mutationFn: async (versionId: number) =>
 			api.delete(`/portfolios/me/versions/${versionId}`),
 		onSuccess: async () => {
+			setVersionToDelete(null);
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
 		},
 	});
@@ -93,6 +98,11 @@ export default function DashboardPage() {
 	) {
 		return <div className="app-card p-6">Loading dashboard...</div>;
 	}
+
+	const handleDeleteConfirm = () => {
+		if (!versionToDelete) return;
+		deleteVersionMutation.mutate(versionToDelete.id);
+	};
 
 	return (
 		<main className="space-y-5">
@@ -250,13 +260,12 @@ export default function DashboardPage() {
 											type="button"
 											variant="ghost"
 											size="sm"
-											onClick={() => {
-												const shouldDelete = window.confirm(
-													`Delete "${version.name}"? This cannot be undone.`,
-												);
-												if (!shouldDelete) return;
-												deleteVersionMutation.mutate(version.id);
-											}}
+											onClick={() =>
+												setVersionToDelete({
+													id: version.id,
+													name: version.name,
+												})
+											}
 											disabled={deleteVersionMutation.isPending}
 										>
 											<Trash2 className="size-4" />
@@ -275,6 +284,37 @@ export default function DashboardPage() {
 					))}
 				</CardContent>
 			</Card>
+
+			{versionToDelete ? (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+					<Card className="w-full max-w-md border-border/70 shadow-xl">
+						<CardHeader>
+							<CardTitle className="text-lg">Delete version?</CardTitle>
+							<CardDescription>
+								Delete "{versionToDelete.name}"? This cannot be undone.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="flex justify-end gap-2">
+							<Button
+								type="button"
+								variant="outline"
+								onClick={() => setVersionToDelete(null)}
+								disabled={deleteVersionMutation.isPending}
+							>
+								Cancel
+							</Button>
+							<Button
+								type="button"
+								variant="destructive"
+								onClick={handleDeleteConfirm}
+								disabled={deleteVersionMutation.isPending}
+							>
+								{deleteVersionMutation.isPending ? "Deleting..." : "Delete"}
+							</Button>
+						</CardContent>
+					</Card>
+				</div>
+			) : null}
 		</main>
 	);
 }
