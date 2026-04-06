@@ -93,7 +93,9 @@ export default function AppLayout() {
 						>
 							<span className="truncate">Resume-style Web Dev Portfolio Generator</span>
 						</Link>
-						<ThemeToggleButton />
+						<div className="sm:hidden">
+							<ThemeToggleButton />
+						</div>
 						<button
 							type="button"
 							className={cn(
@@ -108,7 +110,7 @@ export default function AppLayout() {
 						</button>
 					</div>
 
-					<div className="mt-3 hidden items-center gap-1.5 sm:flex sm:flex-wrap">
+					<div className="mt-3 hidden items-center justify-between gap-2 sm:flex">
 						{isAuthed ? (
 							<div ref={navMenusRef} className="flex flex-wrap items-center gap-1.5">
 								<Link
@@ -290,12 +292,12 @@ export default function AppLayout() {
 								</button>
 							</div>
 						) : (
-							<>
+							<div className="flex flex-wrap items-center gap-6 px-1">
 								<Link
 									to="/"
 									className={cn(
-										buttonVariants({ size: "sm", variant: "ghost" }),
-										isHomeActive && navActiveClass,
+										"text-[1.04rem] font-semibold tracking-tight text-foreground/82 transition-colors hover:text-foreground",
+										isHomeActive && "text-foreground",
 									)}
 								>
 									Home
@@ -303,8 +305,8 @@ export default function AppLayout() {
 								<Link
 									to="/sample"
 									className={cn(
-										buttonVariants({ size: "sm", variant: "ghost" }),
-										isSampleActive && navActiveClass,
+										"text-[1.04rem] font-semibold tracking-tight text-foreground/82 transition-colors hover:text-foreground",
+										isSampleActive && "text-foreground",
 									)}
 								>
 									Sample output
@@ -312,20 +314,30 @@ export default function AppLayout() {
 								<Link
 									to="/guide"
 									className={cn(
-										buttonVariants({ size: "sm", variant: "ghost" }),
-										isGuideActive && navActiveClass,
+										"text-[1.04rem] font-semibold tracking-tight text-foreground/82 transition-colors hover:text-foreground",
+										isGuideActive && "text-foreground",
 									)}
 								>
 									User guide
 								</Link>
-								<Link to="/login" className={buttonVariants({ size: "sm", variant: "ghost" })}>
+								<Link
+									to="/login"
+									className="text-[1.04rem] font-semibold tracking-tight text-foreground/82 transition-colors hover:text-foreground"
+								>
 									Log in
 								</Link>
-								<Link to="/signup" className={buttonVariants({ size: "sm" })}>
+								<Link
+									to="/signup"
+									className={cn(
+										buttonVariants({ size: "sm" }),
+										"rounded-2xl px-4 text-[1.02rem] font-semibold",
+									)}
+								>
 									Create account
 								</Link>
-							</>
+							</div>
 						)}
+						<ThemeToggleButton />
 					</div>
 
 					{mobileNavOpen ? (
