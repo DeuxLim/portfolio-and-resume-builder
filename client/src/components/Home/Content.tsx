@@ -7,36 +7,74 @@ import TechStack from "@/components/Home/TechStack";
 import Experience from "./Experience";
 import { motion } from "motion/react";
 import usePrefersReducedMotion from "@/hooks/usePrefersReducedMotion";
-import { getVisibleSectionOrder } from "@/lib/portfolioLayout";
+import MarkdownContent from "@/components/shared/MarkdownContent";
+import {
+	packSectionLayout,
+	getVisibleSectionOrder,
+	PORTFOLIO_LAYOUT_GAP,
+	PORTFOLIO_LAYOUT_ROW_HEIGHT,
+} from "@/lib/portfolioLayout";
 import type { ReactNode } from "react";
 import type { PublicPortfolio } from "../../../../shared/types/portfolio.types";
 import { defaultPortfolioLayout } from "../../../../shared/defaults/portfolio";
 import type { PortfolioSectionKey } from "../../../../shared/types/portfolio.types";
-
-const mdSpanClass: Record<4 | 6 | 8 | 12, string> = {
-	4: "md:col-span-4",
-	6: "md:col-span-6",
-	8: "md:col-span-8",
-	12: "md:col-span-12",
-};
 
 export default function Content({
 	portfolio,
 }: {
 	portfolio?: PublicPortfolio;
 }) {
+	const clampSectionHeight = (value: number) =>
+		Math.min(48, Math.max(4, Math.round(value)));
 	const prefersReducedMotion = usePrefersReducedMotion();
 	const data = portfolio;
 	const sectionOrder = getVisibleSectionOrder(data);
-
-	const sectionSpanByKey = {
+	const rawSpans = {
 		...defaultPortfolioLayout.sectionSpans,
 		...(data?.layout?.sectionSpans ?? {}),
 	};
-	const sectionHeightByKey = {
+	const rawHeights = {
 		...defaultPortfolioLayout.sectionHeights,
 		...(data?.layout?.sectionHeights ?? {}),
 	};
+	const rawPositions = {
+		...(defaultPortfolioLayout.sectionPositions ?? {}),
+		...(data?.layout?.sectionPositions ?? {}),
+	};
+
+	const sectionSpanByKey: Record<PortfolioSectionKey, 4 | 6 | 8 | 12> = {
+		about: (rawSpans.about ?? 8) as 4 | 6 | 8 | 12,
+		timeline: (rawSpans.timeline ?? 4) as 4 | 6 | 8 | 12,
+		experience: (rawSpans.experience ?? 8) as 4 | 6 | 8 | 12,
+		tech: (rawSpans.tech ?? 4) as 4 | 6 | 8 | 12,
+		projects: (rawSpans.projects ?? 12) as 4 | 6 | 8 | 12,
+		heatmap: (rawSpans.heatmap ?? 6) as 4 | 6 | 8 | 12,
+		custom: (rawSpans.custom ?? 6) as 4 | 6 | 8 | 12,
+	};
+	const sectionHeightByKey: Record<PortfolioSectionKey, number> = {
+		about: clampSectionHeight(Number(rawHeights.about ?? 7)),
+		timeline: clampSectionHeight(Number(rawHeights.timeline ?? 7)),
+		experience: clampSectionHeight(Number(rawHeights.experience ?? 7)),
+		tech: clampSectionHeight(Number(rawHeights.tech ?? 7)),
+		projects: clampSectionHeight(Number(rawHeights.projects ?? 6)),
+		heatmap: clampSectionHeight(Number(rawHeights.heatmap ?? 5)),
+		custom: clampSectionHeight(Number(rawHeights.custom ?? 5)),
+	};
+	const sectionPositionByKey: Record<PortfolioSectionKey, { x: number; y: number }> = {
+		about: { x: Number(rawPositions.about?.x ?? 0), y: Number(rawPositions.about?.y ?? 0) },
+		timeline: { x: Number(rawPositions.timeline?.x ?? 8), y: Number(rawPositions.timeline?.y ?? 0) },
+		experience: { x: Number(rawPositions.experience?.x ?? 0), y: Number(rawPositions.experience?.y ?? 7) },
+		tech: { x: Number(rawPositions.tech?.x ?? 8), y: Number(rawPositions.tech?.y ?? 7) },
+		projects: { x: Number(rawPositions.projects?.x ?? 0), y: Number(rawPositions.projects?.y ?? 14) },
+		heatmap: { x: Number(rawPositions.heatmap?.x ?? 0), y: Number(rawPositions.heatmap?.y ?? 20) },
+		custom: { x: Number(rawPositions.custom?.x ?? 6), y: Number(rawPositions.custom?.y ?? 20) },
+	};
+	const packedLayoutByKey = packSectionLayout({
+		order: sectionOrder,
+		spans: sectionSpanByKey,
+		heights: sectionHeightByKey,
+		positions: sectionPositionByKey,
+	});
 
 	const sectionContentByKey: Record<PortfolioSectionKey, ReactNode> = {
 		about: <About paragraphs={data?.about} />,
@@ -80,9 +118,10 @@ export default function Content({
 										))}
 								</div>
 							) : (
-								<p className="text-sm text-(--app-muted) whitespace-pre-wrap">
-									{section.body}
-								</p>
+								<MarkdownContent
+									content={section.body}
+									className="text-sm text-(--app-muted) whitespace-pre-wrap"
+								/>
 							)}
 						</div>
 					))
@@ -94,7 +133,13 @@ export default function Content({
 	};
 
 	return (
-		<div className="grid grid-cols-4 md:grid-cols-12 gap-3 sm:gap-4">
+		<div
+			className="grid grid-cols-4 md:grid-cols-12"
+			style={{
+				gap: `${PORTFOLIO_LAYOUT_GAP}px`,
+				gridAutoRows: `${PORTFOLIO_LAYOUT_ROW_HEIGHT}px`,
+			}}
+		>
 			{sectionOrder.map((sectionKey, index) => (
 				<motion.div
 					key={sectionKey}
@@ -110,8 +155,11 @@ export default function Content({
 							? undefined
 							: { duration: 0.45, ease: [0.16, 1, 0.3, 1] }
 					}
-					className={`col-span-4 ${mdSpanClass[sectionSpanByKey[sectionKey] ?? 6]} app-card p-2.5 sm:p-4`}
-					style={{ gridRowEnd: `span ${sectionHeightByKey[sectionKey] ?? 6}` }}
+					className="col-span-4 layout-scroll-content app-card overflow-auto p-2.5 sm:p-4"
+					style={{
+						gridColumn: `${(packedLayoutByKey[sectionKey]?.x ?? 0) + 1} / span ${packedLayoutByKey[sectionKey]?.w ?? 6}`,
+						gridRow: `${(packedLayoutByKey[sectionKey]?.y ?? 0) + 1} / span ${packedLayoutByKey[sectionKey]?.h ?? 6}`,
+					}}
 				>
 					{sectionContentByKey[sectionKey]}
 				</motion.div>
@@ -127,6 +175,15 @@ export default function Content({
 						: { duration: 0.55, ease: [0.16, 1, 0.3, 1] }
 				}
 				className="md:col-span-12 col-span-4 border-t border-(--app-border) p-2.5 sm:p-4 flex items-center justify-center mt-3 sm:mt-4 h-16 sm:h-24"
+				style={{
+					gridColumn: "1 / span 12",
+					gridRowStart:
+						sectionOrder.reduce((maxRow, key) => {
+							const y = packedLayoutByKey[key]?.y ?? 0;
+							const h = packedLayoutByKey[key]?.h ?? 6;
+							return Math.max(maxRow, y + h);
+						}, 0) + 1,
+				}}
 			>
 				<Footer fullName={data?.fullName} />
 			</motion.div>

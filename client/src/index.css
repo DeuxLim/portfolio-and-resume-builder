@@ -352,6 +352,96 @@
 	.react-resizable-handle {
 		opacity: 0.75;
 	}
+
+	.layout-canvas .react-grid-item {
+		position: relative;
+	}
+
+	.layout-canvas .react-resizable-handle {
+		opacity: 0;
+		background: none;
+		transition: opacity 180ms ease, transform 180ms ease, background-color 180ms ease,
+			border-color 180ms ease;
+	}
+
+	/* Corner grips */
+	.layout-canvas .react-resizable-handle-se,
+	.layout-canvas .react-resizable-handle-sw,
+	.layout-canvas .react-resizable-handle-ne,
+	.layout-canvas .react-resizable-handle-nw {
+		width: 10px;
+		height: 10px;
+		border-radius: 999px;
+		background: color-mix(in oklab, var(--app-surface) 82%, var(--app-text) 18%);
+		border: 1px solid color-mix(in oklab, var(--app-border) 75%, var(--app-text) 25%);
+		box-shadow: 0 0 0 1px color-mix(in oklab, var(--app-surface) 92%, transparent);
+	}
+
+	/* Edge grips */
+	.layout-canvas .react-resizable-handle-n,
+	.layout-canvas .react-resizable-handle-s {
+		height: 4px;
+		left: 14px;
+		right: 14px;
+		width: auto;
+		border-radius: 999px;
+		background: color-mix(in oklab, var(--app-border) 70%, var(--app-text) 30%);
+	}
+
+	.layout-canvas .react-resizable-handle-e,
+	.layout-canvas .react-resizable-handle-w {
+		width: 4px;
+		top: 14px;
+		bottom: 14px;
+		height: auto;
+		border-radius: 999px;
+		background: color-mix(in oklab, var(--app-border) 70%, var(--app-text) 30%);
+	}
+
+	/* Position edge grips */
+	.layout-canvas .react-resizable-handle-n {
+		top: 3px;
+	}
+	.layout-canvas .react-resizable-handle-s {
+		bottom: 3px;
+	}
+	.layout-canvas .react-resizable-handle-e {
+		right: 3px;
+	}
+	.layout-canvas .react-resizable-handle-w {
+		left: 3px;
+	}
+
+	/* Position corner grips */
+	.layout-canvas .react-resizable-handle-nw {
+		top: 3px;
+		left: 3px;
+	}
+	.layout-canvas .react-resizable-handle-ne {
+		top: 3px;
+		right: 3px;
+	}
+	.layout-canvas .react-resizable-handle-sw {
+		bottom: 3px;
+		left: 3px;
+	}
+	.layout-canvas .react-resizable-handle-se {
+		bottom: 3px;
+		right: 3px;
+	}
+
+	.layout-canvas .react-grid-item:hover .react-resizable-handle,
+	.layout-canvas .react-grid-item.react-resizable-resizing .react-resizable-handle,
+	.layout-canvas .react-grid-item.react-draggable-dragging .react-resizable-handle {
+		opacity: 0.9;
+	}
+
+	.layout-canvas .react-grid-item:hover .react-resizable-handle-se,
+	.layout-canvas .react-grid-item:hover .react-resizable-handle-sw,
+	.layout-canvas .react-grid-item:hover .react-resizable-handle-ne,
+	.layout-canvas .react-grid-item:hover .react-resizable-handle-nw {
+		transform: scale(1.06);
+	}
 }
 
 @layer components {

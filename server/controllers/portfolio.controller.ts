@@ -109,17 +109,47 @@ const normalizeSectionHeights = (
 	return base;
 };
 
+const normalizeSectionPositions = (
+	value: unknown,
+): Partial<Record<PortfolioSectionKey, { x: number; y: number }>> => {
+	const base = {
+		...(defaultPortfolioLayout.sectionPositions ?? {}),
+	};
+	const input =
+		value && typeof value === "object"
+			? (value as Partial<Record<PortfolioSectionKey, { x?: unknown; y?: unknown }>>)
+			: {};
+
+	for (const sectionKey of defaultPortfolioLayout.sectionOrder) {
+		const entry = input[sectionKey];
+		if (!entry || typeof entry !== "object") continue;
+		const x = Number(entry.x);
+		const y = Number(entry.y);
+		if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+		base[sectionKey] = {
+			x: Math.min(11, Math.max(0, Math.round(x))),
+			y: Math.min(47, Math.max(0, Math.round(y))),
+		};
+	}
+
+	return base;
+};
+
 const sanitizeEditablePortfolio = (
 	value: unknown,
 	username: string,
 	accountEmail: string,
 	fullName: string,
+	currentHeaderActions: HeaderAction[] = [],
 ): EditablePortfolio => {
 	const fallback = buildStarterPortfolio(username, accountEmail, fullName);
 	const input = (value ?? {}) as Partial<EditablePortfolio>;
 	const nextEmail = String(input.email ?? fallback.email);
-	const rawHeaderActions = normalizeArray(input.headerActions);
-	const sanitizedHeaderActions = rawHeaderActions
+	const hasHeaderActionsInput = Array.isArray((input as { headerActions?: unknown }).headerActions);
+	const rawHeaderActions = hasHeaderActionsInput
+		? normalizeArray(input.headerActions)
+		: currentHeaderActions;
+	const sanitizedHeaderActions = normalizeArray(rawHeaderActions)
 		.map((entry) => {
 			const item = entry as Partial<HeaderAction>;
 			const type = normalizeHeaderActionType(item.type);
@@ -212,6 +242,7 @@ const sanitizeEditablePortfolio = (
 			sectionOrder: normalizeSectionOrder(input.layout?.sectionOrder),
 			sectionSpans: normalizeSectionSpans(input.layout?.sectionSpans),
 			sectionHeights: normalizeSectionHeights(input.layout?.sectionHeights),
+			sectionPositions: normalizeSectionPositions(input.layout?.sectionPositions),
 		},
 		chatEnabled: Boolean(input.chatEnabled),
 		geminiApiKey: String(input.geminiApiKey ?? ""),
@@ -255,6 +286,7 @@ const updateMyPortfolio = async (req: Request, res: Response) => {
 		current.username,
 		req.auth!.email,
 		req.auth!.fullName,
+		current.headerActions,
 	);
 
 	const portfolio = await updatePortfolioByUserId(req.auth!.userId, payload);
@@ -425,6 +457,7 @@ const createMyPortfolioVersion = async (req: Request, res: Response) => {
 			current.username,
 			req.auth!.email,
 			req.auth!.fullName,
+			current.headerActions,
 		);
 	}
 
@@ -542,6 +575,7 @@ const updateMyPortfolioVersionSnapshot = async (req: Request, res: Response) => 
 		current.username,
 		req.auth!.email,
 		req.auth!.fullName,
+		current.headerActions,
 	);
 
 	const result = await updatePortfolioVersionSnapshotByUserId(

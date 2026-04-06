@@ -62,10 +62,16 @@ export type PortfolioSectionKey =
 
 export type PortfolioSectionSpan = 4 | 6 | 8 | 12;
 
+export type PortfolioSectionPosition = {
+	x: number;
+	y: number;
+};
+
 export type PortfolioLayout = {
 	sectionOrder: PortfolioSectionKey[];
 	sectionSpans: Partial<Record<PortfolioSectionKey, PortfolioSectionSpan>>;
 	sectionHeights: Partial<Record<PortfolioSectionKey, number>>;
+	sectionPositions?: Partial<Record<PortfolioSectionKey, PortfolioSectionPosition>>;
 };
 
 export type PortfolioRecord = {

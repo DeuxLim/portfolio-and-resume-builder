@@ -113,6 +113,15 @@ export const defaultPortfolioLayout: PortfolioLayout = {
 		heatmap: 5,
 		custom: 5,
 	},
+	sectionPositions: {
+		about: { x: 0, y: 0 },
+		timeline: { x: 8, y: 0 },
+		experience: { x: 0, y: 7 },
+		tech: { x: 8, y: 7 },
+		projects: { x: 0, y: 14 },
+		heatmap: { x: 0, y: 20 },
+		custom: { x: 6, y: 20 },
+	},
 };
 
 export const buildStarterPortfolio = (
@@ -134,12 +143,7 @@ export const buildStarterPortfolio = (
 	githubUrl: "",
 	githubUsername: "",
 	linkedinUrl: "",
-	headerActions: buildDefaultHeaderActions({
-		githubUrl: "",
-		linkedinUrl: "",
-		email,
-		phone: "",
-	}),
+	headerActions: [],
 	about: [
 		"Write a short introduction about what you build and the kind of problems you like working on.",
 		"Keep it simple and practical so visitors understand your strengths quickly.",

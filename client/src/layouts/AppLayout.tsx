@@ -32,6 +32,8 @@ export default function AppLayout() {
 
 	const navActiveClass =
 		"bg-emerald-500/12 text-emerald-700 ring-1 ring-emerald-500/35 dark:text-emerald-300";
+	const navMenuItemActiveClass =
+		"bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-500";
 	const isDashboardActive = location.pathname === "/dashboard";
 	const isEditorActive =
 		location.pathname.startsWith("/dashboard/edit") ||
@@ -113,7 +115,7 @@ export default function AppLayout() {
 										</button>
 										{openMenu === "portfolio" ? (
 											<div
-												className="absolute left-0 top-[calc(100%+0.35rem)] z-50 min-w-52 rounded-xl border border-border/80 bg-background p-1.5 shadow-xl"
+												className="absolute left-0 top-[calc(100%+0.35rem)] z-50 min-w-52 rounded-xl border border-border/90 bg-popover p-1.5 text-popover-foreground opacity-100 shadow-2xl ring-1 ring-border/60"
 												role="menu"
 											>
 											<div className="flex flex-col gap-1">
@@ -122,7 +124,7 @@ export default function AppLayout() {
 													className={cn(
 														buttonVariants({ size: "sm", variant: "ghost" }),
 														"justify-start",
-														isEditorActive && navActiveClass,
+														isEditorActive && navMenuItemActiveClass,
 													)}
 													role="menuitem"
 													onClick={() => setOpenMenu(null)}
@@ -145,14 +147,14 @@ export default function AppLayout() {
 														to={publicPortfolioPath}
 														target="_blank"
 														rel="noopener noreferrer"
-														className={cn(
-															buttonVariants({ size: "sm", variant: "ghost" }),
-															"justify-start",
-															location.pathname === publicPortfolioPath &&
-																navActiveClass,
-														)}
-														role="menuitem"
-														onClick={() => setOpenMenu(null)}
+													className={cn(
+														buttonVariants({ size: "sm", variant: "ghost" }),
+														"justify-start",
+														location.pathname === publicPortfolioPath &&
+															navMenuItemActiveClass,
+													)}
+													role="menuitem"
+													onClick={() => setOpenMenu(null)}
 													>
 														My portfolio
 													</Link>
@@ -183,7 +185,7 @@ export default function AppLayout() {
 										</button>
 										{openMenu === "resume" ? (
 											<div
-												className="absolute left-0 top-[calc(100%+0.35rem)] z-50 min-w-52 rounded-xl border border-border/80 bg-background p-1.5 shadow-xl"
+												className="absolute left-0 top-[calc(100%+0.35rem)] z-50 min-w-52 rounded-xl border border-border/90 bg-popover p-1.5 text-popover-foreground opacity-100 shadow-2xl ring-1 ring-border/60"
 												role="menu"
 											>
 											<div className="flex flex-col gap-1">
@@ -192,7 +194,7 @@ export default function AppLayout() {
 													className={cn(
 														buttonVariants({ size: "sm", variant: "ghost" }),
 														"justify-start",
-														isResumeBuilderActive && navActiveClass,
+														isResumeBuilderActive && navMenuItemActiveClass,
 													)}
 													role="menuitem"
 													onClick={() => setOpenMenu(null)}

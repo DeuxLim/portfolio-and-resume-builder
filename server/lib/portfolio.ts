@@ -152,10 +152,29 @@ const normalizeLayout = (
 			nextHeights[section] = safeHeight;
 		}
 	}
+	const nextPositions = {
+		...(fallback.sectionPositions ?? {}),
+	};
+	const rawPositions =
+		parsed?.sectionPositions && typeof parsed.sectionPositions === "object"
+			? parsed.sectionPositions
+			: {};
+	for (const section of fallback.sectionOrder) {
+		const point = (rawPositions as Record<string, unknown>)[section];
+		if (!point || typeof point !== "object") continue;
+		const x = Number((point as Record<string, unknown>).x);
+		const y = Number((point as Record<string, unknown>).y);
+		if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+		nextPositions[section] = {
+			x: Math.min(11, Math.max(0, Math.round(x))),
+			y: Math.min(47, Math.max(0, Math.round(y))),
+		};
+	}
 	return {
 		sectionOrder: deduped.length > 0 ? deduped : [...fallback.sectionOrder],
 		sectionSpans: nextSpans,
 		sectionHeights: nextHeights,
+		sectionPositions: nextPositions,
 	};
 };
 

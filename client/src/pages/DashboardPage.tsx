@@ -21,7 +21,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { Circle, Globe, Layers, Pencil, Plus, Trash2 } from "lucide-react";
+import { Circle, Eye, Globe, Layers, Pencil, Plus, Trash2 } from "lucide-react";
 
 const versionBaseOptions: Array<{
 	value: PortfolioVersionBase;
@@ -540,6 +540,13 @@ export default function DashboardPage() {
 									</Button>
 								) : null}
 								<Link
+									to={`/dashboard/edit?versionId=${version.id}&preview=1`}
+									className={buttonVariants({ variant: "outline", size: "sm" })}
+								>
+									<Eye className="size-4" />
+									Preview
+								</Link>
+								<Link
 									to={`/dashboard/edit?versionId=${version.id}`}
 									className={buttonVariants({ variant: "outline", size: "sm" })}
 								>
@@ -552,46 +559,48 @@ export default function DashboardPage() {
 			</Card>
 
 			{versionToDelete ? (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-					<Card className="w-full max-w-md border-border/70 shadow-xl">
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+					<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
 						<CardHeader>
 							<CardTitle className="text-lg">Delete version?</CardTitle>
 							<CardDescription>
 								Delete "{versionToDelete.name}"? This cannot be undone.
 							</CardDescription>
 						</CardHeader>
-						<CardContent className="flex justify-end gap-2">
-							<Button
-								type="button"
-								variant="outline"
-								onClick={() => setVersionToDelete(null)}
-								disabled={deleteVersionMutation.isPending}
-							>
-								Cancel
-							</Button>
-							<Button
-								type="button"
-								variant="destructive"
-								onClick={handleDeleteConfirm}
-								disabled={deleteVersionMutation.isPending}
-							>
-								{deleteVersionMutation.isPending ? "Deleting..." : "Delete"}
-							</Button>
+						<CardContent className="min-h-0 overflow-y-auto">
+							<div className="flex justify-end gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setVersionToDelete(null)}
+									disabled={deleteVersionMutation.isPending}
+								>
+									Cancel
+								</Button>
+								<Button
+									type="button"
+									variant="destructive"
+									onClick={handleDeleteConfirm}
+									disabled={deleteVersionMutation.isPending}
+								>
+									{deleteVersionMutation.isPending ? "Deleting..." : "Delete"}
+								</Button>
+							</div>
 						</CardContent>
 					</Card>
 				</div>
 			) : null}
 
 			{versionToRename ? (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-					<Card className="w-full max-w-md border-border/70 shadow-xl">
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+					<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
 						<CardHeader>
 							<CardTitle className="text-lg">Rename version</CardTitle>
 							<CardDescription>
 								Update the display name for "{versionToRename.name}".
 							</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-3">
+						<CardContent className="min-h-0 space-y-3 overflow-y-auto">
 							<Input
 								value={versionToRename.nextName}
 								onChange={(event) =>
@@ -634,15 +643,15 @@ export default function DashboardPage() {
 			) : null}
 
 			{versionToCreate ? (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-					<Card className="w-full max-w-lg border-border/70 shadow-xl">
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+					<Card className="flex max-h-[85vh] w-full max-w-lg flex-col border-border/70 shadow-xl">
 						<CardHeader>
 							<CardTitle className="text-lg">Create new version</CardTitle>
 							<CardDescription>
 								Choose the base source, then set the version name.
 							</CardDescription>
 						</CardHeader>
-						<CardContent className="space-y-4">
+						<CardContent className="min-h-0 space-y-4 overflow-y-auto">
 							<div className="space-y-2">
 								<div className="text-sm font-medium">Version name</div>
 								<Input

@@ -67,6 +67,9 @@ import { getAvatarUrl, resolveAssetUrl } from "@/lib/assets";
 import {
 	getVisibleHiddenSections,
 	getVisibleSectionOrder,
+	packSectionLayout,
+	PORTFOLIO_LAYOUT_GAP,
+	PORTFOLIO_LAYOUT_ROW_HEIGHT,
 } from "@/lib/portfolioLayout";
 import { defaultPortfolioLayout } from "../../../shared/defaults/portfolio";
 import type {
@@ -81,6 +84,7 @@ import TechStack from "@/components/Home/TechStack";
 import Projects from "@/components/Home/Projects";
 import Heatmap from "@/components/Home/Heatmap";
 import PortfolioView from "@/components/portfolio/PortfolioView";
+import MarkdownContent from "@/components/shared/MarkdownContent";
 
 const SECTION_META: Record<
 	PortfolioSectionKey,
@@ -118,8 +122,13 @@ const SECTION_META: Record<
 
 const GRID_COLS = 12;
 const GRID_ALLOWED_SPANS: PortfolioSectionSpan[] = [4, 6, 8, 12];
+const GRID_ROW_HEIGHT = PORTFOLIO_LAYOUT_ROW_HEIGHT;
+const GRID_GAP = PORTFOLIO_LAYOUT_GAP;
+const GRID_CONTAINER_PADDING = 0;
 const GRID_MIN_HEIGHT = 4;
 const GRID_MAX_HEIGHT = 48;
+const GRID_MAX_X = GRID_COLS - 1;
+const GRID_MAX_Y = 47;
 const MAX_CUSTOM_SECTIONS = 8;
 const MAX_HEADER_ACTIONS = 4;
 type CreateModalKind =
@@ -163,13 +172,13 @@ export default function PortfolioEditorPage() {
 			? draftBaseInput
 			: "latest";
 	const draftName = String(searchParams.get("name") ?? "").trim();
+	const openedFromDashboardPreview = searchParams.get("preview") === "1";
 	const [portfolio, setPortfolio] = useState<EditablePortfolio | null>(null);
 	const [toast, setToast] = useState<{
 		type: "success" | "error";
 		message: string;
 	} | null>(null);
 	const [quickTechInput, setQuickTechInput] = useState<Record<string, string>>({});
-	const [layoutFeedback, setLayoutFeedback] = useState("");
 	const [draggingSection, setDraggingSection] = useState<PortfolioSectionKey | null>(null);
 	const [openPanels, setOpenPanels] = useState<Record<string, boolean>>({});
 	const [pendingFocusExperienceId, setPendingFocusExperienceId] = useState<string | null>(
@@ -180,11 +189,14 @@ export default function PortfolioEditorPage() {
 	const [layoutWidth, setLayoutWidth] = useState(0);
 	const [canvasLayout, setCanvasLayout] = useState<GridLayoutModel>([]);
 	const [activeTab, setActiveTab] = useState("profile");
-	const [previewOpen, setPreviewOpen] = useState(false);
+	const [previewOpen, setPreviewOpen] = useState(
+		() => openedFromDashboardPreview,
+	);
 	const [renameDialogOpen, setRenameDialogOpen] = useState(false);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [renameValue, setRenameValue] = useState("");
 	const [pendingAutoFit, setPendingAutoFit] = useState(false);
+	const [pendingResetAutoFit, setPendingResetAutoFit] = useState(false);
 	const [aboutMarkdownValue, setAboutMarkdownValue] = useState("");
 	const [aboutMarkdownView, setAboutMarkdownView] = useState<"write" | "preview">(
 		"write",
@@ -207,8 +219,14 @@ export default function PortfolioEditorPage() {
 	>(
 		{},
 	);
+	const sectionInnerContentRefs = useRef<
+		Partial<Record<PortfolioSectionKey, HTMLDivElement | null>>
+	>(
+		{},
+	);
 	const experienceItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
 	const hasAutoFitOnLayoutOpen = useRef(false);
+	const hydratedPortfolioSourceRef = useRef<string | null>(null);
 	const avatarInputRef = useRef<HTMLInputElement | null>(null);
 	const coverInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -295,12 +313,28 @@ export default function PortfolioEditorPage() {
 	}, [portfolio]);
 
 	useEffect(() => {
+		const sourceKey = hasSelectedVersionId
+			? `version:${selectedVersionId}`
+			: draftMode
+				? `draft:${draftBase}:${draftName || "untitled"}`
+				: "live";
+		const sourceChanged = hydratedPortfolioSourceRef.current !== sourceKey;
+		if (sourceChanged) {
+			hydratedPortfolioSourceRef.current = sourceKey;
+		}
+		const shouldHydrate = sourceChanged || !portfolio;
+		if (!shouldHydrate) return;
+
 		if (hasSelectedVersionId) {
 			if (!versionDetailQuery.data) {
 				setPortfolio(null);
 				return;
 			}
-			setPortfolio(cloneEditablePortfolio(versionDetailQuery.data.portfolio));
+			const selectedVersionPortfolio =
+				versionDetailQuery.data.version.isActive && portfolioQuery.data
+					? portfolioQuery.data
+					: versionDetailQuery.data.portfolio;
+			setPortfolio(cloneEditablePortfolio(selectedVersionPortfolio));
 			return;
 		}
 		if (draftMode) {
@@ -314,8 +348,11 @@ export default function PortfolioEditorPage() {
 		if (!portfolioQuery.data) return;
 		setPortfolio(cloneEditablePortfolio(portfolioQuery.data));
 	}, [
+		draftBase,
+		draftName,
 		draftMode,
 		hasSelectedVersionId,
+		portfolio,
 		portfolioQuery.data,
 		selectedVersionId,
 		versionDetailQuery.data,
@@ -354,97 +391,60 @@ export default function PortfolioEditorPage() {
 	}, [activeTab]);
 
 	const toGridRowsFromPixels = (pixelHeight: number) =>
-		Math.ceil(pixelHeight / (26 + 12));
-
-	const buildRowNormalizedHeights = (
-		order: PortfolioSectionKey[],
-		spans: Record<PortfolioSectionKey, PortfolioSectionSpan>,
-		heights: Record<PortfolioSectionKey, number>,
-	): Record<PortfolioSectionKey, number> => {
-		const normalized = { ...heights };
-		let cursorX = 0;
-		let rowSections: PortfolioSectionKey[] = [];
-		let rowMax = GRID_MIN_HEIGHT;
-
-		const flushRow = () => {
-			for (const section of rowSections) {
-				normalized[section] = rowMax;
-			}
-		};
-
-		for (const section of order) {
-			const span = spans[section];
-			if (cursorX + span > GRID_COLS) {
-				flushRow();
-				rowSections = [];
-				rowMax = GRID_MIN_HEIGHT;
-				cursorX = 0;
-			}
-
-			rowSections.push(section);
-			rowMax = Math.max(rowMax, heights[section]);
-			cursorX += span;
-		}
-
-		flushRow();
-		return normalized;
-	};
+		Math.ceil((pixelHeight + GRID_GAP) / (GRID_ROW_HEIGHT + GRID_GAP));
 
 	const autoFitCanvasHeights = () => {
 		setPortfolio((current) => {
 			if (!current) return current;
 
 			const order = getLayoutOrder(current);
-			const spans = resolveSectionSpanRecord(current);
 			const currentHeights = resolveSectionHeightRecord(current);
 			const measuredHeights = { ...currentHeights };
+			let changed = false;
 
 			for (const section of order) {
-				const contentNode = sectionContentRefs.current[section];
-				if (!contentNode) continue;
-				const overflowPx = Math.max(
-					0,
-					contentNode.scrollHeight - contentNode.clientHeight,
+				const outerNode = sectionContentRefs.current[section];
+				const innerNode = sectionInnerContentRefs.current[section];
+				if (!outerNode || !innerNode) continue;
+				if (outerNode.clientHeight <= 0 || innerNode.scrollHeight <= 0) continue;
+
+				const styles = window.getComputedStyle(outerNode);
+				const paddingY =
+					Number.parseFloat(styles.paddingTop || "0") +
+					Number.parseFloat(styles.paddingBottom || "0");
+				const requiredPixelHeight = innerNode.scrollHeight + paddingY + 4;
+
+				const desiredRows = clampSectionHeight(
+					toGridRowsFromPixels(requiredPixelHeight),
 				);
-				if (overflowPx <= 0) continue;
-				const additionalRows = toGridRowsFromPixels(overflowPx + 8);
-				measuredHeights[section] = clampSectionHeight(
-					currentHeights[section] + additionalRows,
-				);
+				if (desiredRows !== measuredHeights[section]) {
+					measuredHeights[section] = desiredRows;
+					changed = true;
+				}
 			}
 
-			const normalizedHeights = buildRowNormalizedHeights(
-				order,
-				spans,
-				measuredHeights,
-			);
+			if (!changed) return current;
 
 			return {
 				...current,
 				layout: {
 					...current.layout,
-					sectionHeights: normalizedHeights,
+					sectionHeights: measuredHeights,
 				},
 			};
 		});
 	};
 
 	useEffect(() => {
-		if (!pendingAutoFit || activeTab !== "layout") return;
-		let timeoutId: ReturnType<typeof setTimeout> | null = null;
-		let timeoutId2: ReturnType<typeof setTimeout> | null = null;
+		if (!pendingAutoFit || activeTab !== "layout" || layoutWidth <= 0) return;
 		const rafId = requestAnimationFrame(() => {
 			autoFitCanvasHeights();
-			timeoutId = setTimeout(() => autoFitCanvasHeights(), 80);
-			timeoutId2 = setTimeout(() => autoFitCanvasHeights(), 220);
 			setPendingAutoFit(false);
 		});
 		return () => {
 			cancelAnimationFrame(rafId);
-			if (timeoutId) clearTimeout(timeoutId);
-			if (timeoutId2) clearTimeout(timeoutId2);
 		};
-	}, [activeTab, pendingAutoFit]);
+	}, [activeTab, layoutWidth, pendingAutoFit]);
 
 	useEffect(() => {
 		if (activeTab !== "layout") {
@@ -462,6 +462,13 @@ export default function PortfolioEditorPage() {
 			if (!portfolio) {
 				throw new Error("Portfolio data is not ready.");
 			}
+			const payload = cloneEditablePortfolio({
+				...portfolio,
+				layout:
+					canvasLayout.length > 0
+						? deriveLayoutFromGrid(portfolio, canvasLayout)
+						: portfolio.layout,
+			});
 
 			if (draftMode) {
 				if (!draftName) {
@@ -469,7 +476,7 @@ export default function PortfolioEditorPage() {
 				}
 				const created = await api.post<{ version: PortfolioVersionSummary }>(
 					"/portfolios/me/versions",
-					{ name: draftName, base: draftBase, portfolio },
+					{ name: draftName, base: draftBase, portfolio: payload },
 				);
 				const createdVersionId = created.data.version.id;
 				const { data } = await api.get<PortfolioVersionDetail>(
@@ -477,6 +484,7 @@ export default function PortfolioEditorPage() {
 				);
 				return {
 					portfolio: data.portfolio,
+					sentHeaderActions: payload.headerActions,
 					savedDraft: true,
 					createdVersionId,
 				};
@@ -489,10 +497,11 @@ export default function PortfolioEditorPage() {
 			) {
 				const { data } = await api.put<PortfolioVersionDetail>(
 					`/portfolios/me/versions/${selectedVersionId}/snapshot`,
-					{ portfolio },
+					{ portfolio: payload },
 				);
 				return {
 					portfolio: data.portfolio,
+					sentHeaderActions: payload.headerActions,
 					savedDraft: true,
 					createdVersionId: null as number | null,
 				};
@@ -500,10 +509,11 @@ export default function PortfolioEditorPage() {
 
 			const { data } = await api.put<{ portfolio: EditablePortfolio }>(
 				"/portfolios/me",
-				{ portfolio },
+				{ portfolio: payload },
 			);
 			return {
 				portfolio: data.portfolio,
+				sentHeaderActions: payload.headerActions,
 				savedDraft: false,
 				createdVersionId: null as number | null,
 			};
@@ -516,7 +526,22 @@ export default function PortfolioEditorPage() {
 					: "Saved. Your live portfolio is updated.",
 			});
 
-			setPortfolio(cloneEditablePortfolio(result.portfolio));
+			const serverHeaderActions = Array.isArray(result.portfolio.headerActions)
+				? result.portfolio.headerActions
+				: [];
+			const sentHeaderActions = Array.isArray(result.sentHeaderActions)
+				? result.sentHeaderActions
+				: [];
+			const resolvedHeaderActions =
+				serverHeaderActions.length > 0 || sentHeaderActions.length === 0
+					? serverHeaderActions
+					: sentHeaderActions;
+			setPortfolio(
+				cloneEditablePortfolio({
+					...result.portfolio,
+					headerActions: resolvedHeaderActions,
+				}),
+			);
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio"] });
 			await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
@@ -1083,7 +1108,10 @@ export default function PortfolioEditorPage() {
 			}
 			case "custom-section": {
 				if (portfolio.customSections.length >= MAX_CUSTOM_SECTIONS) {
-					setLayoutFeedback(`Custom sections limit reached (${MAX_CUSTOM_SECTIONS}).`);
+					setToast({
+						type: "error",
+						message: `Custom sections limit reached (${MAX_CUSTOM_SECTIONS}).`,
+					});
 					break;
 				}
 				const section = createCustomSection();
@@ -1125,7 +1153,7 @@ export default function PortfolioEditorPage() {
 				);
 				setOpenPanels((current) => ({ ...current, [`custom-${section.id}`]: true }));
 				setPendingAutoFit(true);
-				setLayoutFeedback("Created a custom section.");
+				setToast({ type: "success", message: "Created a custom section." });
 				break;
 			}
 			case "custom-bullet": {
@@ -1275,6 +1303,54 @@ export default function PortfolioEditorPage() {
 		custom: getSectionHeight(source, "custom"),
 	});
 
+	const resolveSectionPositionRecord = (
+		source: EditablePortfolio,
+	): Record<PortfolioSectionKey, { x: number; y: number }> => {
+		const defaults = defaultPortfolioLayout.sectionPositions ?? {
+			about: { x: 0, y: 0 },
+			timeline: { x: 8, y: 0 },
+			experience: { x: 0, y: 7 },
+			tech: { x: 8, y: 7 },
+			projects: { x: 0, y: 14 },
+			heatmap: { x: 0, y: 20 },
+			custom: { x: 6, y: 20 },
+		};
+		const merged = {
+			...defaults,
+			...(source.layout?.sectionPositions ?? {}),
+		};
+		return {
+			about: {
+				x: Math.min(GRID_MAX_X, Math.max(0, Math.round(merged.about?.x ?? 0))),
+				y: Math.min(GRID_MAX_Y, Math.max(0, Math.round(merged.about?.y ?? 0))),
+			},
+			timeline: {
+				x: Math.min(GRID_MAX_X, Math.max(0, Math.round(merged.timeline?.x ?? 8))),
+				y: Math.min(GRID_MAX_Y, Math.max(0, Math.round(merged.timeline?.y ?? 0))),
+			},
+			experience: {
+				x: Math.min(GRID_MAX_X, Math.max(0, Math.round(merged.experience?.x ?? 0))),
+				y: Math.min(GRID_MAX_Y, Math.max(0, Math.round(merged.experience?.y ?? 7))),
+			},
+			tech: {
+				x: Math.min(GRID_MAX_X, Math.max(0, Math.round(merged.tech?.x ?? 8))),
+				y: Math.min(GRID_MAX_Y, Math.max(0, Math.round(merged.tech?.y ?? 7))),
+			},
+			projects: {
+				x: Math.min(GRID_MAX_X, Math.max(0, Math.round(merged.projects?.x ?? 0))),
+				y: Math.min(GRID_MAX_Y, Math.max(0, Math.round(merged.projects?.y ?? 14))),
+			},
+			heatmap: {
+				x: Math.min(GRID_MAX_X, Math.max(0, Math.round(merged.heatmap?.x ?? 0))),
+				y: Math.min(GRID_MAX_Y, Math.max(0, Math.round(merged.heatmap?.y ?? 20))),
+			},
+			custom: {
+				x: Math.min(GRID_MAX_X, Math.max(0, Math.round(merged.custom?.x ?? 6))),
+				y: Math.min(GRID_MAX_Y, Math.max(0, Math.round(merged.custom?.y ?? 20))),
+			},
+		};
+	};
+
 	const removeSectionFromLayout = (sectionKey: PortfolioSectionKey) => {
 		setPortfolio((current) => {
 			if (!current) return current;
@@ -1288,7 +1364,10 @@ export default function PortfolioEditorPage() {
 				},
 			};
 		});
-		setLayoutFeedback(`Removed ${SECTION_META[sectionKey].title} from canvas.`);
+		setToast({
+			type: "success",
+			message: `Removed ${SECTION_META[sectionKey].title} from canvas.`,
+		});
 	};
 
 	const addSectionBackToLayout = (sectionKey: PortfolioSectionKey) => {
@@ -1305,29 +1384,36 @@ export default function PortfolioEditorPage() {
 			};
 		});
 		setPendingAutoFit(true);
-		setLayoutFeedback(`Added ${SECTION_META[sectionKey].title} back to canvas.`);
+		setToast({
+			type: "success",
+			message: `Added ${SECTION_META[sectionKey].title} back to canvas.`,
+		});
 	};
 
 	const buildGridLayoutFromPortfolio = (source: EditablePortfolio): GridLayoutModel => {
 		const order = getLayoutOrder(source);
-		let cursorX = 0;
-		let cursorY = 0;
-		let currentRowHeight = 0;
+		const positions = resolveSectionPositionRecord(source);
+		const spans = resolveSectionSpanRecord(source);
+		const heights = resolveSectionHeightRecord(source);
+		const packed = packSectionLayout({
+			order,
+			spans,
+			heights,
+			positions,
+			cols: GRID_COLS,
+		});
 
 		return order.map((sectionKey) => {
-			const w = getSectionSpan(source, sectionKey);
-			const h = getSectionHeight(source, sectionKey);
-
-			if (cursorX + w > GRID_COLS) {
-				cursorX = 0;
-				cursorY += currentRowHeight || 1;
-				currentRowHeight = 0;
-			}
+			const itemLayout = packed[sectionKey];
+			const w = itemLayout.w;
+			const h = itemLayout.h;
+			const x = itemLayout.x;
+			const y = itemLayout.y;
 
 			const item: GridLayoutItem = {
 				i: sectionKey,
-				x: cursorX,
-				y: cursorY,
+				x,
+				y,
 				w,
 				h,
 				minW: 4,
@@ -1336,9 +1422,6 @@ export default function PortfolioEditorPage() {
 				maxH: GRID_MAX_HEIGHT,
 				isBounded: true,
 			};
-
-			cursorX += w;
-			currentRowHeight = Math.max(currentRowHeight, h);
 			return item;
 		});
 	};
@@ -1352,7 +1435,11 @@ export default function PortfolioEditorPage() {
 		const heights = getLayoutOrder(portfolio)
 			.map((key) => `${key}:${getSectionHeight(portfolio, key)}`)
 			.join("|");
-		return `${order}__${spans}__${heights}`;
+		const positionRecord = resolveSectionPositionRecord(portfolio);
+		const positions = getLayoutOrder(portfolio)
+			.map((key) => `${key}:${positionRecord[key].x},${positionRecord[key].y}`)
+			.join("|");
+		return `${order}__${spans}__${heights}__${positions}`;
 	}, [portfolio]);
 
 	useEffect(() => {
@@ -1360,42 +1447,71 @@ export default function PortfolioEditorPage() {
 		setCanvasLayout(buildGridLayoutFromPortfolio(portfolio));
 	}, [layoutSignature, portfolio]);
 
+	useEffect(() => {
+		if (!pendingResetAutoFit || activeTab !== "layout" || !portfolio) return;
+		const rafId = requestAnimationFrame(() => {
+			setPendingAutoFit(true);
+			setPendingResetAutoFit(false);
+		});
+		return () => cancelAnimationFrame(rafId);
+	}, [activeTab, layoutSignature, pendingResetAutoFit, portfolio]);
+
 	const commitGridLayoutToPortfolio = (nextLayout: GridLayoutModel) => {
 		setPortfolio((current) => {
 			if (!current) return current;
-
-			const sorted = [...nextLayout].sort((a, b) =>
-				a.y === b.y ? a.x - b.x : a.y - b.y,
-			);
-			const nextOrder = normalizeOrder(
-				sorted.map((item) => item.i as PortfolioSectionKey),
-			);
-			const nextSpans = sorted.reduce<Record<PortfolioSectionKey, PortfolioSectionSpan>>(
-				(acc, item) => {
-					const key = item.i as PortfolioSectionKey;
-					acc[key] = snapToAllowedSpan(item.w);
-					return acc;
-				},
-				resolveSectionSpanRecord(current),
-			);
-			const nextHeights = sorted.reduce<Record<PortfolioSectionKey, number>>(
-				(acc, item) => {
-					const key = item.i as PortfolioSectionKey;
-					acc[key] = clampSectionHeight(item.h);
-					return acc;
-				},
-				resolveSectionHeightRecord(current),
-			);
-
 			return {
 				...current,
-				layout: {
-					sectionOrder: nextOrder,
-					sectionSpans: nextSpans,
-					sectionHeights: nextHeights,
-				},
+				layout: deriveLayoutFromGrid(current, nextLayout),
 			};
 		});
+	};
+
+	const deriveLayoutFromGrid = (
+		source: EditablePortfolio,
+		nextLayout: GridLayoutModel,
+	) => {
+		const sorted = [...nextLayout].sort((a, b) =>
+			a.y === b.y ? a.x - b.x : a.y - b.y,
+		);
+		const nextOrder = normalizeOrder(
+			sorted.map((item) => item.i as PortfolioSectionKey),
+		);
+		const nextSpans = sorted.reduce<Record<PortfolioSectionKey, PortfolioSectionSpan>>(
+			(acc, item) => {
+				const key = item.i as PortfolioSectionKey;
+				acc[key] = snapToAllowedSpan(item.w);
+				return acc;
+			},
+			resolveSectionSpanRecord(source),
+		);
+		const nextHeights = sorted.reduce<Record<PortfolioSectionKey, number>>(
+			(acc, item) => {
+				const key = item.i as PortfolioSectionKey;
+				acc[key] = clampSectionHeight(item.h);
+				return acc;
+			},
+			resolveSectionHeightRecord(source),
+		);
+		const nextPositions = sorted.reduce<
+			Record<PortfolioSectionKey, { x: number; y: number }>
+		>(
+			(acc, item) => {
+				const key = item.i as PortfolioSectionKey;
+				acc[key] = {
+					x: Math.min(GRID_MAX_X, Math.max(0, Math.round(item.x))),
+					y: Math.min(GRID_MAX_Y, Math.max(0, Math.round(item.y))),
+				};
+				return acc;
+			},
+			resolveSectionPositionRecord(source),
+		);
+
+		return {
+			sectionOrder: nextOrder,
+			sectionSpans: nextSpans,
+			sectionHeights: nextHeights,
+			sectionPositions: nextPositions,
+		};
 	};
 
 	const getCanvasSectionContent = (
@@ -1450,9 +1566,10 @@ export default function PortfolioEditorPage() {
 											))}
 									</div>
 								) : (
-									<p className="text-sm text-(--app-muted) whitespace-pre-wrap">
-										{section.body}
-									</p>
+									<MarkdownContent
+										content={section.body}
+										className="text-sm text-(--app-muted) whitespace-pre-wrap"
+									/>
 								)}
 							</div>
 						))}
@@ -1482,7 +1599,8 @@ export default function PortfolioEditorPage() {
 								{
 									kind: "custom-section",
 									title: "Create Text Section",
-									description: "Provide initial content for the new custom text section.",
+									description:
+										"Provide initial content for the new custom text section (Markdown or HTML).",
 									customSectionType: "text",
 								},
 								{ title: "", body: "" },
@@ -1836,24 +1954,28 @@ export default function PortfolioEditorPage() {
 										</Button>
 									</div>
 								) : (
-									<Textarea
-										rows={4}
-										value={item.body}
-										onChange={(event) =>
-											setPortfolio((current) =>
-												current
-													? {
-															...current,
-															customSections: current.customSections.map((entry) =>
-																entry.id === item.id
-																	? { ...entry, body: event.target.value }
-																	: entry,
-															),
-														}
-													: current,
-											)
-										}
-									/>
+									<div className="space-y-2">
+										<Label>Body (Markdown or HTML)</Label>
+										<Textarea
+											rows={4}
+											placeholder="Write Markdown or HTML content..."
+											value={item.body}
+											onChange={(event) =>
+												setPortfolio((current) =>
+													current
+														? {
+																...current,
+																customSections: current.customSections.map((entry) =>
+																	entry.id === item.id
+																		? { ...entry, body: event.target.value }
+																		: entry,
+																),
+															}
+														: current,
+												)
+											}
+										/>
+									</div>
 								)}
 							</>
 						)}
@@ -1893,6 +2015,13 @@ export default function PortfolioEditorPage() {
 		: editingVersionIsLive
 			? "Live"
 			: "Draft";
+	const closePreview = () => {
+		if (openedFromDashboardPreview) {
+			navigate("/dashboard");
+			return;
+		}
+		setPreviewOpen(false);
+	};
 
 	return (
 		<main className="space-y-5 pb-10">
@@ -3348,38 +3477,17 @@ export default function PortfolioEditorPage() {
 							<div>
 								<CardTitle>Layout canvas</CardTitle>
 								<CardDescription>
-									Drag from each block header to reposition. Resize from the bottom-right
-									handle to change width.
+									Drag cards to reposition. Resize from any edge or corner.
 								</CardDescription>
 							</div>
 						</CardHeader>
 						<CardContent className="space-y-4">
-							<div className="rounded-lg bg-muted/35 px-3 py-2 text-xs text-muted-foreground">
-								Drag from each card header to reposition blocks. Content inside cards
-								stays scrollable if it exceeds current card size.
-							</div>
-							<div className="rounded-lg bg-muted/35 px-3 py-2 text-xs text-muted-foreground">
-								If move or resize is constrained, a hint appears after drop. Resize from
-								the bottom-right corner.
+							<div className="rounded-md border border-border/60 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
+								Tip: cards scroll when content exceeds height. Use Reset to restore default
+								placement and sizing.
 							</div>
 
-							<div className="flex flex-wrap gap-2">
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									onClick={() => {
-										const snapped = canvasLayout.map((item) => ({
-											...item,
-											w: snapToAllowedSpan(item.w),
-										}));
-										setCanvasLayout(snapped);
-										commitGridLayoutToPortfolio(snapped);
-										setLayoutFeedback("Card widths snapped to supported 4/6/8/12 steps.");
-									}}
-								>
-									Snap widths to 4/6/8/12
-								</Button>
+							<div className="flex flex-wrap items-center gap-2">
 								<Button
 									type="button"
 									variant="outline"
@@ -3393,14 +3501,19 @@ export default function PortfolioEditorPage() {
 															sectionOrder: [...defaultPortfolioLayout.sectionOrder],
 															sectionSpans: { ...defaultPortfolioLayout.sectionSpans },
 															sectionHeights: { ...defaultPortfolioLayout.sectionHeights },
+															sectionPositions: {
+																...(defaultPortfolioLayout.sectionPositions ?? {}),
+															},
 														},
 													}
 												: current,
 										);
-										setPendingAutoFit(true);
-										setLayoutFeedback(
-											"Reset to defaults, then auto-fit heights to content.",
-										);
+										setPendingAutoFit(false);
+										setPendingResetAutoFit(true);
+										setToast({
+											type: "success",
+											message: "Layout reset to defaults.",
+										});
 									}}
 								>
 									Reset to default layout
@@ -3411,21 +3524,13 @@ export default function PortfolioEditorPage() {
 									size="sm"
 									onClick={() => {
 										setPendingAutoFit(true);
-										setLayoutFeedback("Auto-fitting block heights to content...");
+										setToast({
+											type: "success",
+											message: "Auto-fitting block heights to content...",
+										});
 									}}
 								>
 									Auto-fit heights
-								</Button>
-								<Button
-									type="button"
-									variant="secondary"
-									size="sm"
-									onClick={() => {
-										commitGridLayoutToPortfolio(canvasLayout);
-										setLayoutFeedback("Layout synced from canvas.");
-									}}
-								>
-									Apply current canvas
 								</Button>
 								<Button
 									type="button"
@@ -3458,24 +3563,49 @@ export default function PortfolioEditorPage() {
 								</div>
 							)}
 
-							{layoutFeedback && (
-								<div className="rounded-md border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs text-blue-700 dark:text-blue-300">
-									{layoutFeedback}
+							<div className="space-y-2 rounded-md border border-border/60 bg-muted/20 px-3 py-2">
+								<div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+									Blocks
 								</div>
-							)}
+								<div className="flex flex-wrap gap-2">
+								{getLayoutOrder(portfolio).map((sectionKey) => (
+									<div
+										key={`section-control-${sectionKey}`}
+										className="layout-block-action inline-flex items-center gap-2 rounded-md border border-border/60 bg-background/80 px-2 py-1 text-xs"
+									>
+										<span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+											{SECTION_META[sectionKey].title}
+										</span>
+										<span className="text-[11px] text-muted-foreground/90">
+											{getSectionSpan(portfolio, sectionKey)} / 12
+										</span>
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											className="h-6 px-1.5 text-[11px]"
+											disabled={getLayoutOrder(portfolio).length <= 1}
+											onClick={() => removeSectionFromLayout(sectionKey)}
+										>
+											Remove
+										</Button>
+									</div>
+								))}
+								</div>
+							</div>
 
 							<div
 								ref={layoutContainerRef}
-								className="overflow-hidden rounded-xl bg-muted/20"
+								className="layout-canvas mx-auto w-full max-w-4xl overflow-hidden rounded-xl"
 							>
 								<GridLayout
 									width={layoutWidth}
 									layout={canvasLayout}
 									gridConfig={{
 										cols: GRID_COLS,
-										rowHeight: 26,
-										margin: [12, 12],
-										containerPadding: [8, 8],
+										rowHeight: GRID_ROW_HEIGHT,
+										margin: [GRID_GAP, GRID_GAP],
+										containerPadding: [GRID_CONTAINER_PADDING, GRID_CONTAINER_PADDING],
 										maxRows: 48,
 									}}
 									dragConfig={{
@@ -3486,14 +3616,15 @@ export default function PortfolioEditorPage() {
 									}}
 									resizeConfig={{
 										enabled: true,
-										handles: ["se"],
+										handles: ["n", "s", "e", "w", "ne", "nw", "se", "sw"],
 									}}
 									onDragStart={(_, oldItem) => {
 										if (!oldItem) return;
 										setDraggingSection(oldItem.i as PortfolioSectionKey);
-										setLayoutFeedback(
-											"Drag preview is live. Release to apply the new position.",
-										);
+										setToast({
+											type: "success",
+											message: "Drag preview is live. Release to apply the new position.",
+										});
 									}}
 									onDragStop={(nextLayout, oldItem, newItem) => {
 										setDraggingSection(null);
@@ -3502,11 +3633,12 @@ export default function PortfolioEditorPage() {
 
 										if (!oldItem || !newItem) return;
 										const moved = oldItem.x !== newItem.x || oldItem.y !== newItem.y;
-										setLayoutFeedback(
-											moved
+										setToast({
+											type: moved ? "success" : "error",
+											message: moved
 												? "Placement updated."
 												: "This spot is constrained by current grid bounds.",
-										);
+										});
 									}}
 									onDrag={(nextLayout) => {
 										setCanvasLayout(nextLayout);
@@ -3520,11 +3652,12 @@ export default function PortfolioEditorPage() {
 
 										if (!oldItem || !newItem) return;
 										const resized = oldItem.w !== newItem.w || oldItem.h !== newItem.h;
-										setLayoutFeedback(
-											resized
+										setToast({
+											type: resized ? "success" : "error",
+											message: resized
 												? "Block size updated."
 												: "Resize constrained by neighboring blocks or grid bounds.",
-										);
+										});
 									}}
 								>
 									{getLayoutOrder(portfolio).map((sectionKey) => (
@@ -3534,22 +3667,18 @@ export default function PortfolioEditorPage() {
 												draggingSection === sectionKey ? "ring-2 ring-(--app-accent)" : ""
 											}`}
 										>
-											<div className="layout-block-action absolute right-2 top-2 z-10 flex items-center gap-2 rounded-md border border-border/70 bg-background/90 px-2 py-1 backdrop-blur">
-												<div className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-													{SECTION_META[sectionKey].title}
-												</div>
-												<div className="text-[11px] text-muted-foreground">
-													{getSectionSpan(portfolio, sectionKey)} / 12
-												</div>
+											<div className="layout-block-action absolute right-2 top-2 z-20">
 												<Button
 													type="button"
 													variant="ghost"
 													size="sm"
-													className="layout-block-action h-6 px-2 text-[11px]"
+													className="h-7 w-7 rounded-md border border-border/60 bg-background/90 p-0 text-muted-foreground hover:text-foreground"
 													disabled={getLayoutOrder(portfolio).length <= 1}
 													onClick={() => removeSectionFromLayout(sectionKey)}
+													aria-label={`Remove ${SECTION_META[sectionKey].title} section`}
+													title={`Remove ${SECTION_META[sectionKey].title}`}
 												>
-													Remove
+													<X className="size-3.5" />
 												</Button>
 											</div>
 											<div
@@ -3558,7 +3687,13 @@ export default function PortfolioEditorPage() {
 												}}
 												className="layout-drag-surface layout-scroll-content app-card h-full min-w-0 max-w-full cursor-move overflow-auto p-2.5 sm:p-4 [overflow-wrap:anywhere]"
 											>
-												{getCanvasSectionContent(sectionKey, portfolio)}
+												<div
+													ref={(node) => {
+														sectionInnerContentRefs.current[sectionKey] = node;
+													}}
+												>
+													{getCanvasSectionContent(sectionKey, portfolio)}
+												</div>
 											</div>
 										</div>
 									))}
@@ -3660,13 +3795,13 @@ export default function PortfolioEditorPage() {
 				</Tabs>
 
 				{createModal ? (
-					<div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 px-4">
-						<Card className="w-full max-w-lg border-border/70 shadow-xl">
+					<div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+						<Card className="flex max-h-[85vh] w-full max-w-lg flex-col border-border/70 shadow-xl">
 							<CardHeader>
 								<CardTitle className="text-lg">{createModal.title}</CardTitle>
 								<CardDescription>{createModal.description}</CardDescription>
 							</CardHeader>
-							<CardContent className="space-y-3">
+							<CardContent className="min-h-0 space-y-3 overflow-y-auto">
 								{createModal.kind === "header-action" ? (
 									<>
 										<div className="space-y-1">
@@ -4161,7 +4296,7 @@ export default function PortfolioEditorPage() {
 										</div>
 										{createModal.customSectionType === "text" ? (
 											<div className="space-y-1">
-												<Label>Body</Label>
+												<Label>Body (Markdown or HTML)</Label>
 												<Textarea
 													rows={4}
 													value={createForm.body ?? ""}
@@ -4171,7 +4306,7 @@ export default function PortfolioEditorPage() {
 															body: event.target.value,
 														}))
 													}
-													placeholder="Write your text content..."
+													placeholder="Write Markdown or HTML content..."
 												/>
 											</div>
 										) : null}
@@ -4321,28 +4456,30 @@ export default function PortfolioEditorPage() {
 									type="button"
 									variant="outline"
 									size="sm"
-									onClick={() => setPreviewOpen(false)}
+									onClick={closePreview}
 								>
 									Close
 								</Button>
 							</div>
 							<div className="h-full overflow-auto p-3 sm:p-4">
-								<PortfolioView portfolio={portfolio} />
+								<div className="mx-auto max-w-4xl px-3 pt-5 sm:px-4 sm:pt-6 md:pt-8">
+									<PortfolioView portfolio={portfolio} />
+								</div>
 							</div>
 						</div>
 					</div>
 				)}
 
 				{renameDialogOpen && canManageSelectedDraftVersion ? (
-					<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-						<Card className="w-full max-w-md border-border/70 shadow-xl">
+					<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+						<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
 							<CardHeader>
 								<CardTitle className="text-lg">Rename version</CardTitle>
 								<CardDescription>
 									Update the version name.
 								</CardDescription>
 							</CardHeader>
-							<CardContent className="space-y-3">
+							<CardContent className="min-h-0 space-y-3 overflow-y-auto">
 								<Input
 									value={renameValue}
 									onChange={(event) => setRenameValue(event.target.value)}
@@ -4382,15 +4519,16 @@ export default function PortfolioEditorPage() {
 				) : null}
 
 				{deleteDialogOpen && canManageSelectedDraftVersion ? (
-					<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-						<Card className="w-full max-w-md border-border/70 shadow-xl">
+					<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+						<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
 							<CardHeader>
 								<CardTitle className="text-lg">Delete version?</CardTitle>
 								<CardDescription>
 									Delete this version? This cannot be undone.
 								</CardDescription>
 							</CardHeader>
-							<CardContent className="flex justify-end gap-2">
+							<CardContent className="min-h-0 overflow-y-auto">
+								<div className="flex justify-end gap-2">
 								<Button
 									type="button"
 									variant="outline"
@@ -4407,14 +4545,15 @@ export default function PortfolioEditorPage() {
 								>
 									{deleteVersionMutation.isPending ? "Deleting..." : "Delete"}
 								</Button>
+								</div>
 							</CardContent>
 						</Card>
 					</div>
 				) : null}
 
 				{isHeaderActionsEditorOpen && (
-					<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3 sm:p-6">
-						<div className="w-full max-w-6xl overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-foreground/10">
+					<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/35 p-3 sm:items-center sm:p-6">
+						<div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-foreground/10">
 							<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
 								<div>
 									<div className="text-base font-semibold">Header Actions</div>
@@ -4469,8 +4608,8 @@ export default function PortfolioEditorPage() {
 				)}
 
 				{isCustomSectionEditorOpen && (
-					<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3 sm:p-6">
-					<div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-foreground/10">
+					<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/35 p-3 sm:items-center sm:p-6">
+					<div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-foreground/10">
 						<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
 							<div>
 								<div className="text-base font-semibold">Custom Section Editor</div>
