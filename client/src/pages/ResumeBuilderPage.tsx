@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, apiBaseUrl } from "@/lib/axios.client";
-import { sessionQueryKey, useSession } from "@/hooks/useSession";
+import { useSession } from "@/hooks/useSession";
+import { usePinnedSidebar } from "@/hooks/usePinnedSidebar";
 import {
 	cloneResume,
 	createResumeListItem,
@@ -19,14 +20,30 @@ import type {
 	ResumeValidationResult,
 } from "../../../shared/types/resume.types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+	Card,
+	CardAction,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { ArrowDown, ArrowUp, Download, Save, Shuffle, Trash2, WandSparkles } from "lucide-react";
+import {
+	ArrowDown,
+	ArrowUp,
+	Download,
+	Eye,
+	FileText,
+	Save,
+	Shuffle,
+	Trash2,
+} from "lucide-react";
 
 const sectionTitleByKey: Record<ResumeSectionKey, string> = {
 	header: "Header",
@@ -64,6 +81,10 @@ const makeId = () =>
 		? crypto.randomUUID()
 		: `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
+const editorCardClassName = "border-border/70 shadow-none";
+const contentSectionCardClassName = `${editorCardClassName} scroll-mt-24`;
+const itemBlockClassName = "space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3";
+
 export default function ResumeBuilderPage() {
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -73,6 +94,19 @@ export default function ResumeBuilderPage() {
 		type: "success" | "error";
 		message: string;
 	} | null>(null);
+	const [activeTab, setActiveTab] = useState("content");
+	const [previewOpen, setPreviewOpen] = useState(false);
+	const [shortcutsOpen, setShortcutsOpen] = useState(false);
+	const [resetLayoutDialogOpen, setResetLayoutDialogOpen] = useState(false);
+	const [activeContentSection, setActiveContentSection] = useState(
+		"resume-content-header",
+	);
+	const { shellRef: navShellRef, asideRef: navAsideRef, pinnedStyle } = usePinnedSidebar({
+		enabled: activeTab === "content",
+		topOffset: 96,
+		minWidth: 768,
+		defaultWidth: 220,
+	});
 
 	useEffect(() => {
 		if (!toast) return;
@@ -132,6 +166,23 @@ export default function ResumeBuilderPage() {
 		return warnings;
 	}, [resume?.content.skills]);
 
+	const contentSectionNav = useMemo(
+		() => [
+			{ id: "resume-content-header", label: "Header" },
+			{ id: "resume-content-summary", label: "Summary" },
+			{ id: "resume-content-skills", label: "Skills" },
+			{ id: "resume-content-experience", label: "Experience" },
+			{ id: "resume-content-education", label: "Education" },
+			{ id: "resume-content-projects", label: "Projects" },
+			{ id: "resume-content-languages", label: "Languages" },
+			...listSections.map((section) => ({
+				id: `resume-content-${section.key}`,
+				label: section.title,
+			})),
+		],
+		[],
+	);
+
 	const saveMutation = useMutation({
 		mutationFn: async () => {
 			const { data } = await api.put<{ resume: ResumeRecord; validation: ResumeValidationResult }>(
@@ -150,17 +201,59 @@ export default function ResumeBuilderPage() {
 		},
 	});
 
-	const syncMutation = useMutation({
-		mutationFn: async () => api.post("/resumes/me/sync-portfolio"),
-		onSuccess: async () => {
-			setToast({ type: "success", message: "Resume synced to portfolio." });
-			await queryClient.invalidateQueries({ queryKey: ["my-portfolio"] });
-			await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
-		},
-		onError: () => {
-			setToast({ type: "error", message: "Failed to sync resume to portfolio." });
-		},
-	});
+	useEffect(() => {
+		const onKeyDown = (event: KeyboardEvent) => {
+			const isMeta = event.ctrlKey || event.metaKey;
+			const key = event.key.toLowerCase();
+			const isSaveKey = isMeta && key === "s" && !event.altKey;
+			const isPreviewKey = isMeta && event.shiftKey && key === "p";
+			if (isSaveKey) {
+				event.preventDefault();
+				if (!resume || saveMutation.isPending) return;
+				saveMutation.mutate();
+				return;
+			}
+			if (isPreviewKey) {
+				event.preventDefault();
+				setPreviewOpen(true);
+				return;
+			}
+			if (key === "escape") {
+				setPreviewOpen(false);
+				setShortcutsOpen(false);
+				setResetLayoutDialogOpen(false);
+			}
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [resume, saveMutation]);
+
+	useEffect(() => {
+		if (activeTab !== "content") return;
+		const sections = contentSectionNav
+			.map((entry) => document.getElementById(entry.id))
+			.filter((entry): entry is HTMLElement => Boolean(entry));
+		if (!sections.length) return;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				const visible = entries
+					.filter((entry) => entry.isIntersecting)
+					.sort(
+						(a, b) =>
+							a.boundingClientRect.top - b.boundingClientRect.top,
+					);
+				if (!visible.length) return;
+				setActiveContentSection(visible[0].target.id);
+			},
+			{
+				root: null,
+				rootMargin: "-20% 0px -65% 0px",
+				threshold: [0, 0.25, 0.5, 1],
+			},
+		);
+		for (const section of sections) observer.observe(section);
+		return () => observer.disconnect();
+	}, [activeTab, contentSectionNav]);
 
 	if (resumeQuery.isLoading || !resume) {
 		return <div className="app-card p-6">Loading resume builder...</div>;
@@ -251,8 +344,15 @@ export default function ResumeBuilderPage() {
 		});
 	};
 
+	const scrollToContentSection = (sectionId: string) => {
+		const element = document.getElementById(sectionId);
+		if (!element) return;
+		setActiveContentSection(sectionId);
+		element.scrollIntoView({ behavior: "smooth", block: "center" });
+	};
+
 	return (
-		<main className="space-y-4">
+		<main className="space-y-5 pb-10">
 			{toast ? (
 				<div className="fixed right-4 top-4 z-50">
 					<div
@@ -266,48 +366,65 @@ export default function ResumeBuilderPage() {
 					</div>
 				</div>
 			) : null}
-			<Card className="border-border/70 shadow-none">
-				<CardHeader className="space-y-2 pb-3">
-					<div>
-						<CardTitle className="text-2xl">Resume Builder</CardTitle>
+			<Card className="bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-transparent shadow-none">
+				<CardHeader className="gap-3">
+					<div className="space-y-2">
+						<Badge variant="secondary" className="w-fit">
+							<FileText className="mr-1 size-3.5" />
+							Resume Builder
+						</Badge>
+						<CardTitle className="text-xl sm:text-2xl">Resume Builder</CardTitle>
 						<CardDescription>
-							ATS-first layout, dynamic sections, and PDF export.
+							ATS-first layout, dynamic sections, and server-rendered PDF export.
 						</CardDescription>
 					</div>
+					<CardAction className="flex flex-wrap items-center justify-end gap-2">
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							className="h-9 px-3"
+							onClick={() => setPreviewOpen(true)}
+						>
+							<Eye className="size-4" />
+							Quick Preview
+						</Button>
+						<Button
+							type="button"
+							size="sm"
+							className="h-9 px-3"
+							onClick={() => saveMutation.mutate()}
+							disabled={saveMutation.isPending}
+						>
+							<Save className="size-4" />
+							{saveMutation.isPending ? "Saving..." : "Save Resume"}
+						</Button>
+						<a href={pdfDownloadHref}>
+							<Button type="button" size="sm" variant="secondary" className="h-9 px-3">
+								<Download className="size-4" />
+								Download PDF
+							</Button>
+						</a>
+					</CardAction>
 				</CardHeader>
 				<CardContent className="space-y-4 text-sm">
 					<div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-						<div className="space-y-2">
-							<Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-								Actions
-							</Label>
+						<div className="rounded-md border border-dashed border-border/70 bg-muted/20 px-3 py-2">
+							<div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+								Validation
+							</div>
 							<div className="flex flex-wrap gap-2">
-								<Button
-									type="button"
-									variant="outline"
-									onClick={() => syncMutation.mutate()}
-									disabled={syncMutation.isPending}
-								>
-									<WandSparkles className="size-4" />
-									{syncMutation.isPending ? "Syncing..." : "Sync to Portfolio"}
-								</Button>
-								<Button
-									type="button"
-									onClick={() => saveMutation.mutate()}
-									disabled={saveMutation.isPending}
-								>
-									<Save className="size-4" />
-									{saveMutation.isPending ? "Saving..." : "Save Resume"}
-								</Button>
-								<a href={pdfDownloadHref}>
-									<Button type="button" variant="secondary">
-										<Download className="size-4" />
-										Download PDF
-									</Button>
-								</a>
+								<Badge variant={liveValidation?.errors.length ? "destructive" : "secondary"}>
+									Errors: {liveValidation?.errors.length ?? 0}
+								</Badge>
+								<Badge variant="outline">
+									Warnings: {liveValidation?.warnings.length ?? 0}
+								</Badge>
+								<Badge variant="outline">
+									Pages: {liveValidation?.estimatedPages ?? 1}
+								</Badge>
 							</div>
 						</div>
-
 						<div className="space-y-2">
 							<Label
 								htmlFor="resume-template-key"
@@ -317,7 +434,7 @@ export default function ResumeBuilderPage() {
 							</Label>
 							<select
 								id="resume-template-key"
-								className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+								className="h-9 w-full rounded-lg border border-border/70 bg-background/80 px-3 text-sm"
 								value={resume.templateKey}
 								onChange={(event) =>
 									setResume((current) =>
@@ -341,35 +458,59 @@ export default function ResumeBuilderPage() {
 							</select>
 						</div>
 					</div>
-
-					<div className="rounded-md border bg-muted/30 px-3 py-2">
-						<div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-							Validation
-						</div>
-						<div className="flex flex-wrap gap-2">
-						<Badge variant={liveValidation?.errors.length ? "destructive" : "secondary"}>
-							Errors: {liveValidation?.errors.length ?? 0}
-						</Badge>
-						<Badge variant="outline">
-							Warnings: {liveValidation?.warnings.length ?? 0}
-						</Badge>
-						<Badge variant="outline">
-							Pages: {liveValidation?.estimatedPages ?? 1}
-						</Badge>
-					</div>
-					</div>
 				</CardContent>
 			</Card>
 
-			<Tabs defaultValue="content" className="space-y-4">
-				<TabsList>
-					<TabsTrigger value="content">Content</TabsTrigger>
-					<TabsTrigger value="layout">Layout</TabsTrigger>
-					<TabsTrigger value="preview">Preview</TabsTrigger>
+			<Tabs value={activeTab} onValueChange={setActiveTab} className="gap-3">
+				<TabsList className="!h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl bg-muted/45 p-1">
+					<TabsTrigger value="content" className="h-9 flex-none rounded-lg px-3">
+						Content
+					</TabsTrigger>
+					<TabsTrigger value="layout" className="h-9 flex-none rounded-lg px-3">
+						Layout
+					</TabsTrigger>
+					<TabsTrigger value="preview" className="h-9 flex-none rounded-lg px-3">
+						Preview
+					</TabsTrigger>
 				</TabsList>
 
-				<TabsContent value="content" className="space-y-4">
-					<Card id="resume-content-header">
+					<TabsContent value="content" className="space-y-4">
+						<div
+							ref={navShellRef}
+							className="flex flex-col gap-4 md:flex-row md:items-start"
+						>
+							<aside ref={navAsideRef} className="md:w-[220px] md:shrink-0">
+								<div
+									style={pinnedStyle}
+								>
+									<div className="rounded-lg border border-border/70 bg-muted/20 p-2 md:max-h-[calc(100vh-7.5rem)] md:overflow-y-auto">
+									<div className="px-2 pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+										Content sections
+									</div>
+									<div className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-visible">
+									{contentSectionNav.map((section) => (
+										<Button
+											key={section.id}
+											type="button"
+											variant="ghost"
+											size="sm"
+											onClick={() => scrollToContentSection(section.id)}
+											className={
+												activeContentSection === section.id
+													? "justify-start bg-emerald-500/12 text-emerald-700 ring-1 ring-emerald-500/35 dark:text-emerald-300"
+													: "justify-start"
+											}
+										>
+											{section.label}
+										</Button>
+										))}
+									</div>
+								</div>
+								</div>
+							</aside>
+
+							<div className="min-w-0 flex-1 space-y-4 pb-24">
+					<Card id="resume-content-header" className={contentSectionCardClassName}>
 						<CardHeader>
 							<CardTitle className="text-lg">Header</CardTitle>
 						</CardHeader>
@@ -405,7 +546,7 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card id="resume-content-summary">
+					<Card id="resume-content-summary" className={contentSectionCardClassName}>
 						<CardHeader>
 							<CardTitle className="text-lg">Summary</CardTitle>
 						</CardHeader>
@@ -431,7 +572,7 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card id="resume-content-skills">
+					<Card id="resume-content-skills" className={contentSectionCardClassName}>
 						<CardHeader>
 							<CardTitle className="text-lg">Skills (comma separated)</CardTitle>
 						</CardHeader>
@@ -460,7 +601,7 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card id="resume-content-experience">
+					<Card id="resume-content-experience" className={contentSectionCardClassName}>
 						<CardHeader className="flex-row items-center justify-between">
 							<CardTitle className="text-lg">Experience</CardTitle>
 							<Button
@@ -497,7 +638,7 @@ export default function ResumeBuilderPage() {
 						</CardHeader>
 						<CardContent className="space-y-4">
 							{resume.content.experience.map((item, index) => (
-								<div key={item.id} className="rounded-lg border p-3 space-y-2">
+								<div key={item.id} className={itemBlockClassName}>
 									<div className="flex items-center justify-between">
 										<div className="text-sm font-medium">Role {index + 1}</div>
 										<Button
@@ -644,7 +785,7 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card id="resume-content-education">
+					<Card id="resume-content-education" className={contentSectionCardClassName}>
 						<CardHeader className="flex-row items-center justify-between">
 							<CardTitle className="text-lg">Education</CardTitle>
 							<Button
@@ -679,7 +820,7 @@ export default function ResumeBuilderPage() {
 						</CardHeader>
 						<CardContent className="space-y-3">
 							{resume.content.education.map((item, index) => (
-								<div key={item.id} className="rounded-lg border p-3 space-y-2">
+								<div key={item.id} className={itemBlockClassName}>
 									<div className="flex items-center justify-between">
 										<div className="text-sm font-medium">Education {index + 1}</div>
 										<Button
@@ -753,7 +894,7 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card id="resume-content-projects">
+					<Card id="resume-content-projects" className={contentSectionCardClassName}>
 						<CardHeader className="flex-row items-center justify-between">
 							<CardTitle className="text-lg">Projects</CardTitle>
 							<Button
@@ -787,7 +928,7 @@ export default function ResumeBuilderPage() {
 						</CardHeader>
 						<CardContent className="space-y-3">
 							{resume.content.projects.map((item, index) => (
-								<div key={item.id} className="rounded-lg border p-3 space-y-2">
+								<div key={item.id} className={itemBlockClassName}>
 									<div className="flex items-center justify-between">
 										<div className="text-sm font-medium">Project {index + 1}</div>
 										<Button
@@ -862,7 +1003,7 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card id="resume-content-languages">
+					<Card id="resume-content-languages" className={contentSectionCardClassName}>
 						<CardHeader>
 							<CardTitle className="text-lg">Languages (comma separated)</CardTitle>
 						</CardHeader>
@@ -890,7 +1031,11 @@ export default function ResumeBuilderPage() {
 					</Card>
 
 					{listSections.map((section) => (
-						<Card key={section.key} id={`resume-content-${section.key}`}>
+						<Card
+							key={section.key}
+							id={`resume-content-${section.key}`}
+							className={contentSectionCardClassName}
+						>
 							<CardHeader className="flex-row items-center justify-between">
 								<CardTitle className="text-lg">{section.title}</CardTitle>
 								<Button
@@ -918,7 +1063,7 @@ export default function ResumeBuilderPage() {
 							</CardHeader>
 							<CardContent className="space-y-3">
 								{(resume.content[section.key] as ResumeStructuredListItem[]).map((item, index) => (
-									<div key={item.id} className="rounded-lg border p-3 space-y-2">
+									<div key={item.id} className={itemBlockClassName}>
 										<div className="flex items-center justify-between">
 											<div className="text-sm font-medium">Item {index + 1}</div>
 											<Button
@@ -975,10 +1120,13 @@ export default function ResumeBuilderPage() {
 							</CardContent>
 						</Card>
 					))}
+						<div className="h-20" aria-hidden="true" />
+						</div>
+					</div>
 				</TabsContent>
 
 				<TabsContent value="layout" className="space-y-4">
-					<Card>
+					<Card className={editorCardClassName}>
 						<CardHeader>
 							<CardTitle className="text-lg">Sections</CardTitle>
 							<CardDescription>
@@ -996,7 +1144,7 @@ export default function ResumeBuilderPage() {
 								return (
 									<div
 										key={section.key}
-										className="flex items-center justify-between rounded-lg border p-3"
+										className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/20 p-3"
 									>
 										<div className="flex items-center gap-2">
 											<Checkbox
@@ -1085,7 +1233,7 @@ export default function ResumeBuilderPage() {
 							<Button
 								type="button"
 								variant="secondary"
-								onClick={() => setResume((current) => (current ? resetResumeLayout(current) : current))}
+								onClick={() => setResetLayoutDialogOpen(true)}
 							>
 								<Shuffle className="size-4" />
 								Reset to default layout
@@ -1095,7 +1243,7 @@ export default function ResumeBuilderPage() {
 				</TabsContent>
 
 				<TabsContent value="preview" className="space-y-4">
-					<Card>
+					<Card className={editorCardClassName}>
 						<CardHeader>
 							<CardTitle className="text-lg">Validation summary</CardTitle>
 						</CardHeader>
@@ -1127,7 +1275,7 @@ export default function ResumeBuilderPage() {
 						</CardContent>
 					</Card>
 
-					<Card>
+					<Card className={editorCardClassName}>
 						<CardHeader>
 							<CardTitle className="text-lg">PDF Preview (Actual Render)</CardTitle>
 							<CardDescription>
@@ -1238,6 +1386,102 @@ export default function ResumeBuilderPage() {
 					</Card>
 				</TabsContent>
 			</Tabs>
+
+			{previewOpen ? (
+				<div className="fixed inset-0 z-50 bg-black/60 p-3 sm:p-6">
+					<div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
+						<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
+							<div>
+								<div className="text-sm font-semibold">Quick preview</div>
+								<div className="text-xs text-muted-foreground">
+									Live PDF output with current unsaved editor state.
+								</div>
+							</div>
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								onClick={() => setPreviewOpen(false)}
+							>
+								Close
+							</Button>
+						</div>
+						<div className="h-full overflow-auto p-3 sm:p-4">
+							<div className="overflow-hidden rounded-md border">
+								<iframe
+									title="Resume PDF Preview Modal"
+									src={pdfInlineHref}
+									className="h-[860px] w-full bg-white"
+								/>
+							</div>
+						</div>
+					</div>
+				</div>
+			) : null}
+
+			{shortcutsOpen ? (
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+					<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
+						<CardHeader>
+							<CardTitle className="text-lg">Keyboard shortcuts</CardTitle>
+							<CardDescription>Productivity shortcuts for Resume Builder.</CardDescription>
+						</CardHeader>
+						<CardContent className="min-h-0 space-y-2 overflow-y-auto text-sm">
+							<div className="flex items-center justify-between rounded-md border border-border/70 bg-muted/20 px-3 py-2">
+								<span>Save resume</span>
+								<code className="text-xs">Ctrl/Cmd + S</code>
+							</div>
+							<div className="flex items-center justify-between rounded-md border border-border/70 bg-muted/20 px-3 py-2">
+								<span>Open quick preview</span>
+								<code className="text-xs">Ctrl/Cmd + Shift + P</code>
+							</div>
+							<div className="flex items-center justify-between rounded-md border border-border/70 bg-muted/20 px-3 py-2">
+								<span>Close popups</span>
+								<code className="text-xs">Esc</code>
+							</div>
+							<div className="flex justify-end pt-2">
+								<Button type="button" variant="outline" onClick={() => setShortcutsOpen(false)}>
+									Close
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+			) : null}
+
+			{resetLayoutDialogOpen ? (
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+					<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
+						<CardHeader>
+							<CardTitle className="text-lg">Reset section layout?</CardTitle>
+							<CardDescription>
+								This restores default section order and visibility preferences.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="min-h-0 overflow-y-auto">
+							<div className="flex justify-end gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setResetLayoutDialogOpen(false)}
+								>
+									Cancel
+								</Button>
+								<Button
+									type="button"
+									variant="destructive"
+									onClick={() => {
+										setResume((current) => (current ? resetResumeLayout(current) : current));
+										setResetLayoutDialogOpen(false);
+									}}
+								>
+									Reset
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+			) : null}
 		</main>
 	);
 }

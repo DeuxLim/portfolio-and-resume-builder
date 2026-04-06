@@ -1,4 +1,4 @@
-import { api } from "@/lib/axios.client";
+import { api, apiBaseUrl } from "@/lib/axios.client";
 import type { AxiosError } from "axios";
 import { sessionQueryKey, useSession } from "@/hooks/useSession";
 import type {
@@ -6,6 +6,7 @@ import type {
 	PortfolioVersionBase,
 	PortfolioVersionSummary,
 } from "../../../shared/types/portfolio.types";
+import type { ResumeRecord, ResumeValidationResult } from "../../../shared/types/resume.types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
@@ -19,9 +20,8 @@ import {
 	CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { Circle, Eye, Globe, Layers, Pencil, Plus, Trash2 } from "lucide-react";
+import { Circle, Download, Eye, FileText, Globe, Layers, Pencil, Plus, Trash2 } from "lucide-react";
 
 const versionBaseOptions: Array<{
 	value: PortfolioVersionBase;
@@ -137,6 +137,16 @@ export default function DashboardPage() {
 		},
 		enabled: Boolean(sessionQuery.data?.user),
 	});
+	const resumeQuery = useQuery({
+		queryKey: ["my-resume"],
+		queryFn: async () => {
+			const { data } = await api.get<{ resume: ResumeRecord; validation: ResumeValidationResult }>(
+				"/resumes/me",
+			);
+			return data;
+		},
+		enabled: Boolean(sessionQuery.data?.user),
+	});
 
 	const activateVersionMutation = useMutation({
 		mutationFn: async (versionId: number) =>
@@ -239,6 +249,13 @@ export default function DashboardPage() {
 		if (!username) return "";
 		return `${window.location.origin}/${username}`;
 	}, [portfolioQuery.data?.username, sessionQuery.data?.user?.username]);
+	const resumeTemplateLabel = useMemo(() => {
+		const templateKey = resumeQuery.data?.resume.templateKey;
+		if (templateKey === "harvard_classic_v1") return "Harvard Classic";
+		return "ATS Classic";
+	}, [resumeQuery.data?.resume.templateKey]);
+	const resumePdfPreviewHref = `${apiBaseUrl}/resumes/me/pdf`;
+	const resumePdfDownloadHref = `${apiBaseUrl}/resumes/me/pdf?download=1`;
 
 	useEffect(() => {
 		if (!portfolioQuery.data?.username) return;
@@ -305,7 +322,7 @@ export default function DashboardPage() {
 				</div>
 			) : null}
 
-			<section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_.8fr]">
+			<section className="grid grid-cols-1 gap-4">
 				<Card className="border-border/70 shadow-none">
 					<CardHeader>
 						<div className="flex items-center justify-between gap-2">
@@ -401,32 +418,6 @@ export default function DashboardPage() {
 										? "Copy failed"
 										: "Copy link"}
 							</Button>
-						</div>
-					</CardContent>
-				</Card>
-
-				<Card className="border-border/70 shadow-none">
-					<CardHeader>
-						<CardTitle className="text-lg">Snapshot</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-3 text-sm">
-						<div className="flex items-center justify-between">
-							<span className="text-muted-foreground">Versions</span>
-							<span className="font-medium">{versionsQuery.data?.length ?? 0}</span>
-						</div>
-						<Separator />
-						<div className="flex items-center justify-between">
-							<span className="text-muted-foreground">Projects</span>
-							<span className="font-medium">
-								{portfolioQuery.data?.projects.length ?? 0}
-							</span>
-						</div>
-						<Separator />
-						<div className="flex items-center justify-between">
-							<span className="text-muted-foreground">Tech categories</span>
-							<span className="font-medium">
-								{portfolioQuery.data?.techCategories.length ?? 0}
-							</span>
 						</div>
 					</CardContent>
 				</Card>
@@ -555,6 +546,82 @@ export default function DashboardPage() {
 							</div>
 						</div>
 					))}
+				</CardContent>
+			</Card>
+
+			<Card className="border-border/70 shadow-none">
+				<CardHeader>
+					<div className="flex items-center justify-between gap-2">
+						<div>
+							<CardTitle className="text-lg">Resume Builder</CardTitle>
+							<CardDescription>
+								Manage your resume content and export-ready PDF output.
+							</CardDescription>
+						</div>
+						<FileText className="size-5 text-muted-foreground" />
+					</div>
+				</CardHeader>
+				<CardContent className="space-y-3 text-sm">
+					<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+						<div className="rounded-lg border bg-muted/20 px-3 py-2">
+							<div className="text-xs text-muted-foreground">Template</div>
+							<div className="font-medium">{resumeTemplateLabel}</div>
+						</div>
+						<div className="rounded-lg border bg-muted/20 px-3 py-2">
+							<div className="text-xs text-muted-foreground">Errors</div>
+							<div className="font-medium">
+								{resumeQuery.data?.validation.errors.length ?? 0}
+							</div>
+						</div>
+						<div className="rounded-lg border bg-muted/20 px-3 py-2">
+							<div className="text-xs text-muted-foreground">Warnings</div>
+							<div className="font-medium">
+								{resumeQuery.data?.validation.warnings.length ?? 0}
+							</div>
+						</div>
+						<div className="rounded-lg border bg-muted/20 px-3 py-2">
+							<div className="text-xs text-muted-foreground">Pages</div>
+							<div className="font-medium">
+								{resumeQuery.data?.validation.estimatedPages ?? 1}
+							</div>
+						</div>
+					</div>
+					{resumeQuery.data?.resume.updatedAt ? (
+						<div className="text-xs text-muted-foreground">
+							Updated: {new Date(resumeQuery.data.resume.updatedAt).toLocaleString()}
+						</div>
+					) : null}
+					{resumeQuery.isError ? (
+						<div className="text-xs text-destructive">
+							Unable to load resume summary right now.
+						</div>
+					) : null}
+					<div className="flex flex-wrap gap-2">
+						<Link
+							to="/dashboard/resume"
+							className={buttonVariants({ variant: "outline", size: "sm" })}
+						>
+							Open resume builder
+						</Link>
+						<a
+							href={resumePdfPreviewHref}
+							target="_blank"
+							rel="noreferrer noopener"
+							className={buttonVariants({ variant: "outline", size: "sm" })}
+						>
+							<Eye className="size-4" />
+							Preview PDF
+						</a>
+						<a
+							href={resumePdfDownloadHref}
+							target="_blank"
+							rel="noreferrer noopener"
+							className={buttonVariants({ variant: "outline", size: "sm" })}
+						>
+							<Download className="size-4" />
+							Download PDF
+						</a>
+					</div>
 				</CardContent>
 			</Card>
 

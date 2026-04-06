@@ -11,6 +11,7 @@ import type {
 	CustomSection,
 	EditablePortfolio,
 	ExperienceItem,
+	HeaderAction,
 	PortfolioRecord,
 	ProjectItem,
 	TechCategory,
@@ -107,6 +108,9 @@ export const serializeResume = (resume: ResumeRecord) => {
 const truncate = (value: string, max: number) =>
 	value.length > max ? `${value.slice(0, max - 1)}…` : value;
 
+const createHeaderActionId = (prefix: string) =>
+	`${prefix}-${Math.random().toString(16).slice(2, 10)}`;
+
 const toTechCategories = (skills: string[]): TechCategory[] => {
 	const chunks: string[][] = [];
 	for (let index = 0; index < skills.length; index += 8) {
@@ -131,9 +135,15 @@ const toCustomSectionFromList = (
 			title,
 			type: "bullets",
 			body: "",
-			items: items.map((item) =>
-				[item.title, item.subtitle, item.date].filter(Boolean).join(" · "),
-			),
+			items: items
+				.map((item) => {
+					const heading = [item.title, item.subtitle, item.location, item.date]
+						.filter(Boolean)
+						.join(" · ");
+					const detail = item.details.find((entry) => entry.trim())?.trim() ?? "";
+					return [heading, detail].filter(Boolean).join(" — ");
+				})
+				.filter(Boolean),
 			links: [],
 		};
 	}
@@ -145,7 +155,7 @@ const toCustomSectionFromList = (
 			body: "",
 			items: [],
 			links: items
-				.filter((item) => item.url || item.title)
+				.filter((item) => item.url.trim())
 				.map((item) => ({
 					id: item.id || makeId(),
 					label: item.title || item.url,
@@ -158,11 +168,13 @@ const toCustomSectionFromList = (
 		title,
 		type: "text",
 		body: items
-			.map((item) =>
-				[item.title, item.subtitle, item.location, item.date]
+			.map((item) => {
+				const heading = [item.title, item.subtitle, item.location, item.date]
 					.filter(Boolean)
-					.join(" · "),
-			)
+					.join(" · ");
+				const details = item.details.map((entry) => entry.trim()).filter(Boolean);
+				return [heading, ...details].filter(Boolean).join("\n");
+			})
 			.filter(Boolean)
 			.join("\n"),
 		items: [],
@@ -203,14 +215,82 @@ const isSectionVisible = (
 	section: ResumeSectionKey,
 ) => (section === "header" ? true : Boolean(layout.visibility[section]));
 
+const getGithubUsernameFromUrl = (value: string) => {
+	const raw = value.trim();
+	if (!raw) return "";
+	const cleaned = raw
+		.replace(/^https?:\/\//i, "")
+		.replace(/^www\./i, "")
+		.replace(/^github\.com\//i, "")
+		.replace(/^\//, "")
+		.replace(/\/+$/, "");
+	if (!cleaned || cleaned.includes("/")) return "";
+	return cleaned;
+};
+
+const mergeHeaderActions = (
+	existing: HeaderAction[],
+	contactValues: {
+		githubUrl: string;
+		linkedinUrl: string;
+		email: string;
+		phone: string;
+	},
+): HeaderAction[] => {
+	const source = Array.isArray(existing) ? [...existing] : [];
+	const configs: Array<{
+		type: HeaderAction["type"];
+		label: string;
+		display: HeaderAction["display"];
+		value: string;
+	}> = [
+		{ type: "github", label: "Github", display: "label", value: contactValues.githubUrl },
+		{ type: "linkedin", label: "LinkedIn", display: "label", value: contactValues.linkedinUrl },
+		{ type: "email", label: "Email", display: "value", value: contactValues.email },
+		{ type: "phone", label: "Phone", display: "value", value: contactValues.phone },
+	];
+
+	for (const config of configs) {
+		const existingIndex = source.findIndex((action) => action.type === config.type);
+		if (existingIndex >= 0) {
+			const existingAction = source[existingIndex];
+			if (!existingAction) continue;
+			source[existingIndex] = {
+				...existingAction,
+				value: config.value,
+				label: existingAction.label || config.label,
+				display: existingAction.display ?? config.display,
+			};
+			continue;
+		}
+
+		if (source.length >= 4) continue;
+
+		source.push({
+			id: createHeaderActionId(config.type),
+			type: config.type,
+			label: config.label,
+			display: config.display,
+			value: config.value,
+		});
+	}
+
+	return source.slice(0, 4);
+};
+
 export const mapResumeToPortfolio = (
 	resume: ResumeRecord,
 	portfolio: EditablePortfolio,
 ): EditablePortfolio => {
 	const content = normalizeResumeContent(resume.content);
 	const layout = normalizeResumeLayout(resume.layout);
+	const summaryVisible = isSectionVisible(layout, "summary");
+	const experienceVisible = isSectionVisible(layout, "experience");
+	const educationVisible = isSectionVisible(layout, "education");
+	const skillsVisible = isSectionVisible(layout, "skills");
+	const projectsVisible = isSectionVisible(layout, "projects");
 
-	const summary = content.summary.trim();
+	const summary = summaryVisible ? content.summary.trim() : "";
 	const customSections: CustomSection[] = [];
 	const addIfExists = (section: CustomSection | null) => {
 		if (section) customSections.push(section);
@@ -251,25 +331,37 @@ export const mapResumeToPortfolio = (
 	const educationLine = content.education
 		.map((item) => [item.degree, item.school].filter(Boolean).join(" · "))
 		.filter(Boolean)[0];
+	const githubUrl = content.header.githubUrl || portfolio.githubUrl;
+	const linkedinUrl = content.header.linkedinUrl || portfolio.linkedinUrl;
+	const email = content.header.email || portfolio.email;
+	const phone = content.header.phone || portfolio.phone;
+	const mergedHeaderActions = mergeHeaderActions(portfolio.headerActions, {
+		githubUrl,
+		linkedinUrl,
+		email,
+		phone,
+	});
 
 	return {
 		...portfolio,
 		fullName: content.header.fullName || portfolio.fullName,
 		headline: content.header.headline || portfolio.headline,
 		location: content.header.location || portfolio.location,
-		email: content.header.email || portfolio.email,
-		phone: content.header.phone,
-		githubUrl: content.header.githubUrl,
-		linkedinUrl: content.header.linkedinUrl,
+		email,
+		phone,
+		githubUrl,
+		githubUsername: getGithubUsernameFromUrl(githubUrl) || portfolio.githubUsername,
+		linkedinUrl,
+		headerActions: mergedHeaderActions,
 		about: summary
 			? [summary, ...portfolio.about.slice(1)]
 			: portfolio.about,
 		experienceSummary: truncate(summary || portfolio.experienceSummary, 160),
-		education: educationLine || portfolio.education,
-		timeline: buildTimeline(content.experience),
-		experiences: buildExperiences(content.experience),
-		projects: buildProjects(content.projects),
-		techCategories: toTechCategories(content.skills),
+		education: educationVisible ? educationLine || portfolio.education : portfolio.education,
+		timeline: experienceVisible ? buildTimeline(content.experience) : portfolio.timeline,
+		experiences: experienceVisible ? buildExperiences(content.experience) : portfolio.experiences,
+		projects: projectsVisible ? buildProjects(content.projects) : portfolio.projects,
+		techCategories: skillsVisible ? toTechCategories(content.skills) : portfolio.techCategories,
 		customSections,
 		layout: {
 			...portfolio.layout,

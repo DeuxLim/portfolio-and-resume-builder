@@ -2,7 +2,7 @@ import { Outlet, Link, useLocation } from "react-router";
 import { useNavigate } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import { api } from "@/lib/axios.client";
+import { api, apiBaseUrl } from "@/lib/axios.client";
 import { sessionQueryKey } from "@/hooks/useSession";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -22,6 +22,11 @@ export default function AppLayout() {
 	const username =
 		sessionQuery.data?.portfolioSlug ?? sessionQuery.data?.user?.username;
 	const publicPortfolioPath = username ? `/${username}` : "";
+	const resumePdfHref = `${apiBaseUrl}/resumes/me/pdf`;
+	const resumePdfDownloadHref = `${apiBaseUrl}/resumes/me/pdf?download=1`;
+	const publicResumePdfHref = username
+		? `${apiBaseUrl}/resumes/${encodeURIComponent(username)}/pdf?download=1`
+		: "";
 	const logoutMutation = useMutation({
 		mutationFn: async () => api.post("/auth/logout"),
 		onSuccess: async () => {
@@ -65,7 +70,7 @@ export default function AppLayout() {
 	}, []);
 
 	return (
-		<div className="app-shell relative min-h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_right,#0ea5e91f,transparent_40%),radial-gradient(circle_at_top_left,#22c55e14,transparent_35%)] bg-cover bg-center">
+		<div className="app-shell relative min-h-dvh bg-[radial-gradient(circle_at_top_right,#0ea5e91f,transparent_40%),radial-gradient(circle_at_top_left,#22c55e14,transparent_35%)] bg-cover bg-center">
 			<div className="pointer-events-none absolute inset-0 opacity-70">
 				<div className="absolute -top-32 -left-24 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
 				<div className="absolute top-24 -right-20 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
@@ -118,49 +123,49 @@ export default function AppLayout() {
 												className="absolute left-0 top-[calc(100%+0.35rem)] z-50 min-w-52 rounded-xl border border-border/90 bg-popover p-1.5 text-popover-foreground opacity-100 shadow-2xl ring-1 ring-border/60"
 												role="menu"
 											>
-											<div className="flex flex-col gap-1">
-												<Link
-													to="/dashboard/edit"
-													className={cn(
-														buttonVariants({ size: "sm", variant: "ghost" }),
-														"justify-start",
-														isEditorActive && navMenuItemActiveClass,
-													)}
-													role="menuitem"
-													onClick={() => setOpenMenu(null)}
-												>
-													Edit portfolio
-												</Link>
-												<Link
-													to="/dashboard?newVersion=1"
-													className={cn(
-														buttonVariants({ size: "sm", variant: "ghost" }),
-														"justify-start",
-													)}
-													role="menuitem"
-													onClick={() => setOpenMenu(null)}
-												>
-													New version
-												</Link>
-												{publicPortfolioPath ? (
+												<div className="flex flex-col gap-1">
 													<Link
-														to={publicPortfolioPath}
-														target="_blank"
-														rel="noopener noreferrer"
-													className={cn(
-														buttonVariants({ size: "sm", variant: "ghost" }),
-														"justify-start",
-														location.pathname === publicPortfolioPath &&
-															navMenuItemActiveClass,
-													)}
-													role="menuitem"
-													onClick={() => setOpenMenu(null)}
+														to="/dashboard/edit"
+														className={cn(
+															buttonVariants({ size: "sm", variant: "ghost" }),
+															"justify-start",
+															isEditorActive && navMenuItemActiveClass,
+														)}
+														role="menuitem"
+														onClick={() => setOpenMenu(null)}
 													>
-														My portfolio
+														Edit portfolio
 													</Link>
-												) : null}
+													<Link
+														to="/dashboard?newVersion=1"
+														className={cn(
+															buttonVariants({ size: "sm", variant: "ghost" }),
+															"justify-start",
+														)}
+														role="menuitem"
+														onClick={() => setOpenMenu(null)}
+													>
+														New version
+													</Link>
+													{publicPortfolioPath ? (
+														<Link
+															to={publicPortfolioPath}
+															target="_blank"
+															rel="noopener noreferrer"
+															className={cn(
+																buttonVariants({ size: "sm", variant: "ghost" }),
+																"justify-start",
+																location.pathname === publicPortfolioPath &&
+																	navMenuItemActiveClass,
+															)}
+															role="menuitem"
+															onClick={() => setOpenMenu(null)}
+														>
+															My portfolio
+														</Link>
+													) : null}
+												</div>
 											</div>
-										</div>
 										) : null}
 									</div>
 
@@ -188,21 +193,62 @@ export default function AppLayout() {
 												className="absolute left-0 top-[calc(100%+0.35rem)] z-50 min-w-52 rounded-xl border border-border/90 bg-popover p-1.5 text-popover-foreground opacity-100 shadow-2xl ring-1 ring-border/60"
 												role="menu"
 											>
-											<div className="flex flex-col gap-1">
-												<Link
-													to="/dashboard/resume"
-													className={cn(
-														buttonVariants({ size: "sm", variant: "ghost" }),
-														"justify-start",
-														isResumeBuilderActive && navMenuItemActiveClass,
-													)}
-													role="menuitem"
-													onClick={() => setOpenMenu(null)}
-												>
-													Open resume builder
-												</Link>
+												<div className="flex flex-col gap-1">
+													<Link
+														to="/dashboard/resume"
+														className={cn(
+															buttonVariants({ size: "sm", variant: "ghost" }),
+															"justify-start",
+															isResumeBuilderActive && navMenuItemActiveClass,
+														)}
+														role="menuitem"
+														onClick={() => setOpenMenu(null)}
+													>
+														Open resume builder
+													</Link>
+													<a
+														href={resumePdfHref}
+														target="_blank"
+														rel="noopener noreferrer"
+														className={cn(
+															buttonVariants({ size: "sm", variant: "ghost" }),
+															"justify-start",
+														)}
+														role="menuitem"
+														onClick={() => setOpenMenu(null)}
+													>
+														Preview PDF
+													</a>
+													<a
+														href={resumePdfDownloadHref}
+														target="_blank"
+														rel="noopener noreferrer"
+														className={cn(
+															buttonVariants({ size: "sm", variant: "ghost" }),
+															"justify-start",
+														)}
+														role="menuitem"
+														onClick={() => setOpenMenu(null)}
+													>
+														Download PDF
+													</a>
+													{publicResumePdfHref ? (
+														<a
+															href={publicResumePdfHref}
+															target="_blank"
+															rel="noopener noreferrer"
+															className={cn(
+																buttonVariants({ size: "sm", variant: "ghost" }),
+																"justify-start",
+															)}
+															role="menuitem"
+															onClick={() => setOpenMenu(null)}
+														>
+															Public resume PDF
+														</a>
+													) : null}
+												</div>
 											</div>
-										</div>
 										) : null}
 									</div>
 									<button

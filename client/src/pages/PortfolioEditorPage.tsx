@@ -192,6 +192,7 @@ export default function PortfolioEditorPage() {
 	const [previewOpen, setPreviewOpen] = useState(
 		() => openedFromDashboardPreview,
 	);
+	const [shortcutsOpen, setShortcutsOpen] = useState(false);
 	const [renameDialogOpen, setRenameDialogOpen] = useState(false);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
 	const [renameValue, setRenameValue] = useState("");
@@ -686,18 +687,36 @@ export default function PortfolioEditorPage() {
 
 	useEffect(() => {
 		const onKeyDown = (event: KeyboardEvent) => {
-			const isSaveKey =
-				(event.ctrlKey || event.metaKey) &&
-				event.key.toLowerCase() === "s" &&
-				!event.altKey;
-			if (!isSaveKey) return;
-			event.preventDefault();
-			if (!portfolio || saveMutation.isPending) return;
-			saveMutation.mutate();
+			const isMeta = event.ctrlKey || event.metaKey;
+			const key = event.key.toLowerCase();
+			const isSaveKey = isMeta && key === "s" && !event.altKey;
+			const isPreviewKey = isMeta && event.shiftKey && key === "p";
+			if (isSaveKey) {
+				event.preventDefault();
+				if (!portfolio || saveMutation.isPending) return;
+				saveMutation.mutate();
+				return;
+			}
+			if (isPreviewKey) {
+				event.preventDefault();
+				setPreviewOpen(true);
+				return;
+			}
+			if (key === "escape") {
+				if (openedFromDashboardPreview && previewOpen) {
+					navigate("/dashboard");
+					return;
+				}
+				setPreviewOpen(false);
+				setShortcutsOpen(false);
+				setCreateModal(null);
+				setRenameDialogOpen(false);
+				setDeleteDialogOpen(false);
+			}
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [portfolio, saveMutation]);
+	}, [portfolio, previewOpen, saveMutation, openedFromDashboardPreview, navigate]);
 
 	const setBasicField = (
 		key:
@@ -2110,9 +2129,6 @@ export default function PortfolioEditorPage() {
 								<Save className="size-4" />
 								{saveMutation.isPending ? "Saving..." : "Save changes"}
 							</Button>
-							<span className="text-xs text-muted-foreground">
-								Ctrl/Cmd + S
-							</span>
 						</CardAction>
 				</CardHeader>
 			</Card>
@@ -4469,6 +4485,42 @@ export default function PortfolioEditorPage() {
 						</div>
 					</div>
 				)}
+
+				{shortcutsOpen ? (
+					<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+						<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
+							<CardHeader>
+								<CardTitle className="text-lg">Keyboard shortcuts</CardTitle>
+								<CardDescription>
+									Productivity shortcuts for Portfolio Builder.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="min-h-0 space-y-2 overflow-y-auto text-sm">
+								<div className="flex items-center justify-between rounded-md border border-border/70 bg-muted/20 px-3 py-2">
+									<span>Save changes</span>
+									<code className="text-xs">Ctrl/Cmd + S</code>
+								</div>
+								<div className="flex items-center justify-between rounded-md border border-border/70 bg-muted/20 px-3 py-2">
+									<span>Open quick preview</span>
+									<code className="text-xs">Ctrl/Cmd + Shift + P</code>
+								</div>
+								<div className="flex items-center justify-between rounded-md border border-border/70 bg-muted/20 px-3 py-2">
+									<span>Close popups</span>
+									<code className="text-xs">Esc</code>
+								</div>
+								<div className="flex justify-end pt-2">
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => setShortcutsOpen(false)}
+									>
+										Close
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+					</div>
+				) : null}
 
 				{renameDialogOpen && canManageSelectedDraftVersion ? (
 					<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
