@@ -53,11 +53,11 @@ export default function LandingPage() {
 	}
 
 	return (
-		<main className="mx-auto w-full max-w-[88rem] space-y-14 pb-20 sm:space-y-20 sm:pb-28">
+		<main className="mx-auto w-full max-w-[88rem] space-y-10 pb-16 sm:space-y-20 sm:pb-28">
 			<section className="grid items-start gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-12">
 				<div className="space-y-8 sm:space-y-10">
 					<div className="space-y-5 sm:space-y-6">
-						<h1 className="max-w-xl text-4xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
+						<h1 className="max-w-xl text-3xl font-semibold tracking-tight sm:text-5xl lg:text-6xl">
 							Build a resume-style web developer portfolio in one sitting.
 						</h1>
 						<p className="max-w-xl text-base leading-relaxed text-muted-foreground sm:text-lg">
@@ -67,19 +67,22 @@ export default function LandingPage() {
 						</p>
 					</div>
 
-					<div className="flex flex-wrap gap-4">
-						<Link to="/signup" className={buttonVariants({ size: "lg" })}>
+					<div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:gap-4">
+						<Link
+							to="/signup"
+							className={`${buttonVariants({ size: "lg" })} w-full justify-center sm:w-auto`}
+						>
 							Create account
 						</Link>
 						<Link
 							to="/dashboard/resume"
-							className={buttonVariants({ size: "lg", variant: "secondary" })}
+							className={`${buttonVariants({ size: "lg", variant: "secondary" })} w-full justify-center sm:w-auto`}
 						>
 							Open resume builder
 						</Link>
 						<Link
 							to="/sample"
-							className={buttonVariants({ size: "lg", variant: "outline" })}
+							className={`${buttonVariants({ size: "lg", variant: "outline" })} w-full justify-center sm:w-auto`}
 						>
 							View full sample
 						</Link>
@@ -163,7 +166,7 @@ export default function LandingPage() {
 								<FileText className="size-3.5" />
 								generated-resume-sample.png
 							</div>
-							<div className="h-[26rem] w-full bg-muted/20 p-5 sm:h-[34rem] sm:p-7">
+							<div className="h-[19rem] w-full bg-muted/20 p-3 sm:h-[34rem] sm:p-7">
 								<div className="h-full w-full rounded-lg border bg-background p-5 shadow-sm sm:p-6">
 									<div className="space-y-1 border-b pb-4">
 										<div className="text-lg font-semibold">Morgan Reyes</div>

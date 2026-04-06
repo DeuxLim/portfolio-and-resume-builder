@@ -36,8 +36,8 @@ export default function LoginPage() {
 	});
 
 	return (
-		<main className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1fr_1.1fr]">
-			<Card className="bg-gradient-to-br from-sky-500/12 via-emerald-500/8 to-transparent shadow-none">
+		<main className="mx-auto grid max-w-5xl gap-4 sm:gap-6 lg:grid-cols-[1fr_1.1fr]">
+			<Card className="order-2 bg-gradient-to-br from-sky-500/12 via-emerald-500/8 to-transparent shadow-none lg:order-1">
 				<CardHeader className="space-y-3">
 					<Badge variant="secondary" className="w-fit">
 						<Lock className="mr-1 size-3.5" />
@@ -61,7 +61,7 @@ export default function LoginPage() {
 				</CardContent>
 			</Card>
 
-			<Card className="shadow-none">
+			<Card className="order-1 shadow-none lg:order-2">
 				<CardHeader className="space-y-3">
 					<Badge variant="secondary" className="w-fit">
 						<Sparkles className="mr-1 size-3.5" />

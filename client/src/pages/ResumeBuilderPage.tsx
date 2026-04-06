@@ -378,12 +378,12 @@ export default function ResumeBuilderPage() {
 							ATS-first layout, dynamic sections, and server-rendered PDF export.
 						</CardDescription>
 					</div>
-					<CardAction className="flex flex-wrap items-center justify-end gap-2">
+					<CardAction className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
 						<Button
 							type="button"
 							size="sm"
 							variant="outline"
-							className="h-9 px-3"
+							className="h-9 w-full px-3 sm:w-auto"
 							onClick={() => setPreviewOpen(true)}
 						>
 							<Eye className="size-4" />
@@ -392,15 +392,20 @@ export default function ResumeBuilderPage() {
 						<Button
 							type="button"
 							size="sm"
-							className="h-9 px-3"
+							className="h-9 w-full px-3 sm:w-auto"
 							onClick={() => saveMutation.mutate()}
 							disabled={saveMutation.isPending}
 						>
 							<Save className="size-4" />
 							{saveMutation.isPending ? "Saving..." : "Save Resume"}
 						</Button>
-						<a href={pdfDownloadHref}>
-							<Button type="button" size="sm" variant="secondary" className="h-9 px-3">
+						<a href={pdfDownloadHref} className="w-full sm:w-auto">
+							<Button
+								type="button"
+								size="sm"
+								variant="secondary"
+								className="h-9 w-full px-3 sm:w-auto"
+							>
 								<Download className="size-4" />
 								Download PDF
 							</Button>
@@ -475,10 +480,7 @@ export default function ResumeBuilderPage() {
 				</TabsList>
 
 					<TabsContent value="content" className="space-y-4">
-						<div
-							ref={navShellRef}
-							className="flex flex-col gap-4 md:flex-row md:items-start"
-						>
+						<div ref={navShellRef} className="flex flex-col gap-4 md:flex-row md:items-start">
 							<aside ref={navAsideRef} className="md:w-[220px] md:shrink-0">
 								<div
 									style={pinnedStyle}
@@ -497,8 +499,8 @@ export default function ResumeBuilderPage() {
 											onClick={() => scrollToContentSection(section.id)}
 											className={
 												activeContentSection === section.id
-													? "justify-start bg-emerald-500/12 text-emerald-700 ring-1 ring-emerald-500/35 dark:text-emerald-300"
-													: "justify-start"
+													? "justify-start whitespace-nowrap bg-emerald-500/12 text-emerald-700 ring-1 ring-emerald-500/35 dark:text-emerald-300"
+													: "justify-start whitespace-nowrap"
 											}
 										>
 											{section.label}
@@ -1287,7 +1289,7 @@ export default function ResumeBuilderPage() {
 								<iframe
 									title="Resume PDF Preview"
 									src={pdfInlineHref}
-									className="h-[820px] w-full bg-white"
+									className="h-[70dvh] min-h-[440px] w-full bg-white sm:h-[820px]"
 								/>
 							</div>
 							<a
@@ -1388,8 +1390,8 @@ export default function ResumeBuilderPage() {
 			</Tabs>
 
 			{previewOpen ? (
-				<div className="fixed inset-0 z-50 bg-black/60 p-3 sm:p-6">
-					<div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
+				<div className="fixed inset-0 z-50 bg-black/60 p-2 sm:p-6">
+					<div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-border bg-background shadow-2xl sm:rounded-xl">
 						<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
 							<div>
 								<div className="text-sm font-semibold">Quick preview</div>
@@ -1411,7 +1413,7 @@ export default function ResumeBuilderPage() {
 								<iframe
 									title="Resume PDF Preview Modal"
 									src={pdfInlineHref}
-									className="h-[860px] w-full bg-white"
+									className="h-[78dvh] min-h-[500px] w-full bg-white sm:h-[860px]"
 								/>
 							</div>
 						</div>

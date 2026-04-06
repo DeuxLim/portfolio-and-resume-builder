@@ -325,7 +325,7 @@ export default function DashboardPage() {
 			<section className="grid grid-cols-1 gap-4">
 				<Card className="border-border/70 shadow-none">
 					<CardHeader>
-						<div className="flex items-center justify-between gap-2">
+						<div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
 							<CardTitle className="text-lg">
 								Live portfolio
 								{displayName ? (
@@ -356,18 +356,19 @@ export default function DashboardPage() {
 								<div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
 									Public URL slug
 								</div>
-								<div className="flex flex-wrap items-center gap-2">
-									<div className="shrink-0 text-xs text-muted-foreground">
+								<div className="flex flex-col items-stretch gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+									<div className="text-xs text-muted-foreground">
 										{window.location.origin}/
 									</div>
 									<Input
 										value={publicSlugInput}
 										onChange={(event) => setPublicSlugInput(event.target.value)}
 										placeholder="your-public-url"
-										className="max-w-xs"
+										className="w-full sm:max-w-xs"
 									/>
 									<Button
 										type="button"
+										className="w-full sm:w-auto"
 										size="sm"
 										onClick={() =>
 											updatePublicSlugMutation.mutate(publicSlugInput)
@@ -389,19 +390,20 @@ export default function DashboardPage() {
 								</div>
 							</div>
 						</div>
-						<div className="flex flex-wrap gap-2">
-							<Link
-								to={`/${portfolioQuery.data?.username ?? ""}`}
-								className={buttonVariants({ variant: "outline" })}
-								target="_blank"
-								rel="noreferrer noopener"
-							>
+					<div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+						<Link
+							to={`/${portfolioQuery.data?.username ?? ""}`}
+							className={`${buttonVariants({ variant: "outline" })} w-full justify-center sm:w-auto`}
+							target="_blank"
+							rel="noreferrer noopener"
+						>
 								<Globe className="size-4" />
 								Open live page
 							</Link>
 							<Button
 								type="button"
 								variant="secondary"
+								className="w-full sm:w-auto"
 								onClick={async () => {
 									if (!publicLink) return;
 									try {
@@ -425,14 +427,14 @@ export default function DashboardPage() {
 
 			<Card className="border-border/70 shadow-none">
 				<CardHeader>
-					<div className="flex items-center justify-between gap-2">
+					<div className="flex flex-col items-start justify-between gap-2 sm:flex-row sm:items-center">
 						<div>
 							<CardTitle className="text-lg">Version timeline</CardTitle>
 							<CardDescription>
 								Create, rename, edit, and promote versions without changing your URL.
 							</CardDescription>
 						</div>
-						<div className="flex items-center gap-2">
+						<div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
 							<Badge variant="outline">
 								<Layers className="mr-1 size-3.5" />
 								{versionsQuery.data?.length ?? 0} total
@@ -440,6 +442,7 @@ export default function DashboardPage() {
 							<Button
 								type="button"
 								size="sm"
+								className="w-full sm:w-auto"
 								onClick={() =>
 									setVersionToCreate({
 										name: "",
@@ -474,7 +477,7 @@ export default function DashboardPage() {
 										: "N/A"}
 								</div>
 							</div>
-							<div className="mt-3 flex items-center gap-2 sm:mt-0">
+							<div className="mt-3 grid grid-cols-1 gap-2 sm:mt-0 sm:flex sm:flex-wrap sm:items-center">
 								{version.isActive ? (
 									<span
 										className={cn(
@@ -490,6 +493,7 @@ export default function DashboardPage() {
 										type="button"
 										variant="outline"
 										size="sm"
+										className="w-full sm:w-auto"
 										onClick={() => activateVersionMutation.mutate(version.id)}
 										disabled={activateVersionMutation.isPending}
 									>
@@ -500,6 +504,7 @@ export default function DashboardPage() {
 									type="button"
 									variant="outline"
 									size="sm"
+									className="w-full sm:w-auto"
 									onClick={() =>
 										setVersionToRename({
 											id: version.id,
@@ -518,6 +523,7 @@ export default function DashboardPage() {
 										type="button"
 										variant="ghost"
 										size="sm"
+										className="w-full sm:w-auto"
 										onClick={() =>
 											setVersionToDelete({
 												id: version.id,
@@ -532,14 +538,14 @@ export default function DashboardPage() {
 								) : null}
 								<Link
 									to={`/dashboard/edit?versionId=${version.id}&preview=1`}
-									className={buttonVariants({ variant: "outline", size: "sm" })}
+									className={`${buttonVariants({ variant: "outline", size: "sm" })} w-full justify-center sm:w-auto`}
 								>
 									<Eye className="size-4" />
 									Preview
 								</Link>
 								<Link
 									to={`/dashboard/edit?versionId=${version.id}`}
-									className={buttonVariants({ variant: "outline", size: "sm" })}
+									className={`${buttonVariants({ variant: "outline", size: "sm" })} w-full justify-center sm:w-auto`}
 								>
 									Edit
 								</Link>
@@ -596,10 +602,10 @@ export default function DashboardPage() {
 							Unable to load resume summary right now.
 						</div>
 					) : null}
-					<div className="flex flex-wrap gap-2">
+					<div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
 						<Link
 							to="/dashboard/resume"
-							className={buttonVariants({ variant: "outline", size: "sm" })}
+							className={`${buttonVariants({ variant: "outline", size: "sm" })} w-full justify-center sm:w-auto`}
 						>
 							Open resume builder
 						</Link>
@@ -607,7 +613,7 @@ export default function DashboardPage() {
 							href={resumePdfPreviewHref}
 							target="_blank"
 							rel="noreferrer noopener"
-							className={buttonVariants({ variant: "outline", size: "sm" })}
+							className={`${buttonVariants({ variant: "outline", size: "sm" })} w-full justify-center sm:w-auto`}
 						>
 							<Eye className="size-4" />
 							Preview PDF
@@ -616,7 +622,7 @@ export default function DashboardPage() {
 							href={resumePdfDownloadHref}
 							target="_blank"
 							rel="noreferrer noopener"
-							className={buttonVariants({ variant: "outline", size: "sm" })}
+							className={`${buttonVariants({ variant: "outline", size: "sm" })} w-full justify-center sm:w-auto`}
 						>
 							<Download className="size-4" />
 							Download PDF

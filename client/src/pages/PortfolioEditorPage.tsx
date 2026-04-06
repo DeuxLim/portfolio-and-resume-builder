@@ -2083,13 +2083,13 @@ export default function PortfolioEditorPage() {
 							Public URL: <span className="font-medium">/{portfolio.username}</span>
 						</CardDescription>
 					</div>
-						<CardAction className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+						<CardAction className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
 							{canManageSelectedDraftVersion ? (
 								<Button
 									type="button"
 									size="sm"
 									variant="outline"
-									className="h-9 px-3"
+									className="h-9 w-full px-3 sm:w-auto"
 									onClick={() => setRenameDialogOpen(true)}
 								>
 									<Pencil className="size-4" />
@@ -2101,7 +2101,7 @@ export default function PortfolioEditorPage() {
 									type="button"
 									size="sm"
 									variant="outline"
-									className="h-9 px-3 text-destructive hover:text-destructive"
+									className="h-9 w-full px-3 text-destructive hover:text-destructive sm:w-auto"
 									onClick={() => setDeleteDialogOpen(true)}
 									disabled={Boolean(editingVersion?.isActive)}
 								>
@@ -2113,7 +2113,7 @@ export default function PortfolioEditorPage() {
 								type="button"
 								size="sm"
 								variant="outline"
-								className="h-9 px-3"
+								className="h-9 w-full px-3 sm:w-auto"
 								onClick={() => setPreviewOpen(true)}
 							>
 								<Eye className="size-4" />
@@ -2122,7 +2122,7 @@ export default function PortfolioEditorPage() {
 							<Button
 								type="button"
 								size="sm"
-								className="h-9 px-3"
+								className="h-9 w-full px-3 sm:w-auto"
 								onClick={() => saveMutation.mutate()}
 								disabled={saveMutation.isPending}
 							>
@@ -2137,7 +2137,7 @@ export default function PortfolioEditorPage() {
 					You are creating a draft. This is not public yet until you save and set a version live.
 				</div>
 			) : editingVersion && !editingVersionIsLive ? (
-				<div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2">
+				<div className="flex flex-col items-start justify-between gap-2 rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center">
 					<div className="text-sm text-amber-800 dark:text-amber-200">
 						You are editing a draft version. Public generated portfolio still shows the current live version.
 					</div>
@@ -2145,6 +2145,7 @@ export default function PortfolioEditorPage() {
 						type="button"
 						size="sm"
 						variant="outline"
+						className="w-full sm:w-auto"
 						onClick={() => activateVersionMutation.mutate(editingVersion.id)}
 						disabled={activateVersionMutation.isPending}
 					>
@@ -4459,8 +4460,8 @@ export default function PortfolioEditorPage() {
 				) : null}
 
 				{previewOpen && (
-					<div className="fixed inset-0 z-50 bg-black/60 p-3 sm:p-6">
-						<div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
+					<div className="fixed inset-0 z-50 bg-black/60 p-2 sm:p-6">
+						<div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-border bg-background shadow-2xl sm:rounded-xl">
 							<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
 								<div>
 									<div className="text-sm font-semibold">Quick preview</div>
@@ -4478,7 +4479,7 @@ export default function PortfolioEditorPage() {
 								</Button>
 							</div>
 							<div className="h-full overflow-auto p-3 sm:p-4">
-								<div className="mx-auto max-w-4xl px-3 pt-5 sm:px-4 sm:pt-6 md:pt-8">
+								<div className="mx-auto max-w-4xl px-2 pt-3 sm:px-4 sm:pt-6 md:pt-8">
 									<PortfolioView portfolio={portfolio} />
 								</div>
 							</div>
