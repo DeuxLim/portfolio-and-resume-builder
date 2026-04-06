@@ -102,3 +102,10 @@ export type PortfolioVersionSummary = {
 	createdAt?: string;
 	updatedAt?: string;
 };
+
+export type PortfolioVersionDetail = {
+	version: PortfolioVersionSummary;
+	portfolio: EditablePortfolio;
+};
+
+export type PortfolioVersionBase = "latest" | "live" | "blank";

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/axios.client";
+import type { AxiosError } from "axios";
 import { sessionQueryKey, useSession } from "@/hooks/useSession";
 import {
 	cloneEditablePortfolio,
@@ -19,6 +20,7 @@ import {
 } from "@/lib/tech";
 import type {
 	EditablePortfolio,
+	PortfolioVersionBase,
 	PortfolioVersionDetail,
 	PortfolioVersionSummary,
 } from "../../../shared/types/portfolio.types";
@@ -38,13 +40,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import { ChevronDown, ChevronUp, Layers3, Save, X } from "lucide-react";
+import {
+	ChevronDown,
+	ChevronUp,
+	Eye,
+	Layers3,
+	Pencil,
+	Save,
+	Trash2,
+	X,
+} from "lucide-react";
 import GridLayout, {
 	type Layout as GridLayoutModel,
 	type LayoutItem as GridLayoutItem,
 } from "react-grid-layout";
 import { getAvatarUrl, resolveAssetUrl } from "@/lib/assets";
-import { cn } from "@/lib/utils";
 import { defaultPortfolioLayout } from "../../../shared/defaults/portfolio";
 import type {
 	CustomSection,
@@ -57,6 +67,7 @@ import Experience from "@/components/Home/Experience";
 import TechStack from "@/components/Home/TechStack";
 import Projects from "@/components/Home/Projects";
 import Heatmap from "@/components/Home/Heatmap";
+import PortfolioView from "@/components/portfolio/PortfolioView";
 
 const SECTION_META: Record<
 	PortfolioSectionKey,
@@ -106,6 +117,13 @@ export default function PortfolioEditorPage() {
 	const selectedVersionId = Number(searchParams.get("versionId"));
 	const hasSelectedVersionId =
 		Number.isFinite(selectedVersionId) && selectedVersionId > 0;
+	const draftMode = searchParams.get("draft") === "1" && !hasSelectedVersionId;
+	const draftBaseInput = String(searchParams.get("base") ?? "latest").toLowerCase();
+	const draftBase: PortfolioVersionBase =
+		draftBaseInput === "blank" || draftBaseInput === "live" || draftBaseInput === "latest"
+			? draftBaseInput
+			: "latest";
+	const draftName = String(searchParams.get("name") ?? "").trim();
 	const [portfolio, setPortfolio] = useState<EditablePortfolio | null>(null);
 	const [toast, setToast] = useState<{
 		type: "success" | "error";
@@ -122,6 +140,10 @@ export default function PortfolioEditorPage() {
 	const [layoutWidth, setLayoutWidth] = useState(0);
 	const [canvasLayout, setCanvasLayout] = useState<GridLayoutModel>([]);
 	const [activeTab, setActiveTab] = useState("profile");
+	const [previewOpen, setPreviewOpen] = useState(false);
+	const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [renameValue, setRenameValue] = useState("");
 	const [pendingAutoFit, setPendingAutoFit] = useState(false);
 	const layoutContainerRef = useRef<HTMLDivElement | null>(null);
 	const sectionContentRefs = useRef<
@@ -167,6 +189,17 @@ export default function PortfolioEditorPage() {
 		enabled: Boolean(sessionQuery.data?.user) && hasSelectedVersionId,
 	});
 
+	const versionPreviewQuery = useQuery({
+		queryKey: ["my-portfolio-version-preview", draftBase],
+		queryFn: async () => {
+			const { data } = await api.get<{ portfolio: EditablePortfolio }>(
+				`/portfolios/me/versions/preview?base=${draftBase}`,
+			);
+			return data.portfolio;
+		},
+		enabled: Boolean(sessionQuery.data?.user) && draftMode,
+	});
+
 	useEffect(() => {
 		if (sessionQuery.isSuccess && !sessionQuery.data?.user) {
 			navigate("/login");
@@ -180,14 +213,37 @@ export default function PortfolioEditorPage() {
 	}, [toast]);
 
 	useEffect(() => {
+		if (!versionDetailQuery.data?.version?.name) return;
+		setRenameValue(versionDetailQuery.data.version.name);
+	}, [versionDetailQuery.data?.version?.name]);
+
+	useEffect(() => {
 		if (hasSelectedVersionId) {
-			if (!versionDetailQuery.data) return;
+			if (!versionDetailQuery.data) {
+				setPortfolio(null);
+				return;
+			}
 			setPortfolio(cloneEditablePortfolio(versionDetailQuery.data.portfolio));
+			return;
+		}
+		if (draftMode) {
+			if (!versionPreviewQuery.data) {
+				setPortfolio(null);
+				return;
+			}
+			setPortfolio(cloneEditablePortfolio(versionPreviewQuery.data));
 			return;
 		}
 		if (!portfolioQuery.data) return;
 		setPortfolio(cloneEditablePortfolio(portfolioQuery.data));
-	}, [hasSelectedVersionId, portfolioQuery.data, versionDetailQuery.data]);
+	}, [
+		draftMode,
+		hasSelectedVersionId,
+		portfolioQuery.data,
+		selectedVersionId,
+		versionDetailQuery.data,
+		versionPreviewQuery.data,
+	]);
 
 	useEffect(() => {
 		if (!hasSelectedVersionId || !versionDetailQuery.isError) return;
@@ -345,6 +401,26 @@ export default function PortfolioEditorPage() {
 				throw new Error("Portfolio data is not ready.");
 			}
 
+			if (draftMode) {
+				if (!draftName) {
+					throw new Error("Version name is required.");
+				}
+				const created = await api.post<{ version: PortfolioVersionSummary }>(
+					"/portfolios/me/versions",
+					{ name: draftName, base: draftBase },
+				);
+				const createdVersionId = created.data.version.id;
+				const { data } = await api.put<PortfolioVersionDetail>(
+					`/portfolios/me/versions/${createdVersionId}/snapshot`,
+					{ portfolio },
+				);
+				return {
+					portfolio: data.portfolio,
+					savedDraft: true,
+					createdVersionId,
+				};
+			}
+
 			if (
 				hasSelectedVersionId &&
 				versionDetailQuery.data?.version &&
@@ -354,14 +430,22 @@ export default function PortfolioEditorPage() {
 					`/portfolios/me/versions/${selectedVersionId}/snapshot`,
 					{ portfolio },
 				);
-				return { portfolio: data.portfolio, savedDraft: true };
+				return {
+					portfolio: data.portfolio,
+					savedDraft: true,
+					createdVersionId: null as number | null,
+				};
 			}
 
 			const { data } = await api.put<{ portfolio: EditablePortfolio }>(
 				"/portfolios/me",
 				{ portfolio },
 			);
-			return { portfolio: data.portfolio, savedDraft: false };
+			return {
+				portfolio: data.portfolio,
+				savedDraft: false,
+				createdVersionId: null as number | null,
+			};
 		},
 		onSuccess: async (result) => {
 			setToast({
@@ -375,6 +459,47 @@ export default function PortfolioEditorPage() {
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio"] });
 			await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
+			if (result.createdVersionId) {
+				navigate(`/dashboard/edit?versionId=${result.createdVersionId}`, {
+					replace: true,
+				});
+				await queryClient.invalidateQueries({
+					queryKey: ["my-portfolio-version", result.createdVersionId],
+				});
+				return;
+			}
+			if (hasSelectedVersionId) {
+				await queryClient.invalidateQueries({
+					queryKey: ["my-portfolio-version", selectedVersionId],
+				});
+			}
+		},
+		onError: (error) => {
+			const responseData = (error as AxiosError<{ message?: string }>).response
+				?.data;
+			const fallback =
+				error instanceof Error && error.message
+					? error.message
+					: "Save failed. Please try again.";
+			setToast({
+				type: "error",
+				message: responseData?.message ?? fallback,
+			});
+		},
+	});
+
+	const renameVersionMutation = useMutation({
+		mutationFn: async (nextName: string) => {
+			const versionId = hasSelectedVersionId
+				? selectedVersionId
+				: activeVersion?.id;
+			if (!versionId) throw new Error("Version not found.");
+			return api.put(`/portfolios/me/versions/${versionId}`, { name: nextName });
+		},
+		onSuccess: async () => {
+			setToast({ type: "success", message: "Version renamed." });
+			setRenameDialogOpen(false);
+			await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
 			if (hasSelectedVersionId) {
 				await queryClient.invalidateQueries({
 					queryKey: ["my-portfolio-version", selectedVersionId],
@@ -382,10 +507,26 @@ export default function PortfolioEditorPage() {
 			}
 		},
 		onError: () => {
-			setToast({
-				type: "error",
-				message: "Save failed. Please try again.",
-			});
+			setToast({ type: "error", message: "Failed to rename version." });
+		},
+	});
+
+	const deleteVersionMutation = useMutation({
+		mutationFn: async () => {
+			const versionId = hasSelectedVersionId
+				? selectedVersionId
+				: activeVersion?.id;
+			if (!versionId) throw new Error("Version not found.");
+			return api.delete(`/portfolios/me/versions/${versionId}`);
+		},
+		onSuccess: async () => {
+			setToast({ type: "success", message: "Version deleted." });
+			setDeleteDialogOpen(false);
+			await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
+			navigate("/dashboard");
+		},
+		onError: () => {
+			setToast({ type: "error", message: "Failed to delete version." });
 		},
 	});
 
@@ -1216,6 +1357,7 @@ export default function PortfolioEditorPage() {
 	if (
 		sessionQuery.isLoading ||
 		portfolioQuery.isLoading ||
+		(draftMode && versionPreviewQuery.isLoading) ||
 		(hasSelectedVersionId && versionDetailQuery.isLoading)
 	) {
 		return <div className="app-card p-6">Loading editor...</div>;
@@ -1224,11 +1366,22 @@ export default function PortfolioEditorPage() {
 
 	const activeVersion = versionsQuery.data?.find((version) => version.isActive) ?? null;
 	const selectedVersionSummary = versionDetailQuery.data?.version ?? null;
-	const editingVersion = hasSelectedVersionId
+	const editingVersion = draftMode
+		? null
+		: hasSelectedVersionId
 		? selectedVersionSummary
 		: activeVersion;
-	const editingVersionName = editingVersion?.name ?? "Version";
-	const editingVersionIsLive = Boolean(editingVersion?.isActive);
+	const canManageSelectedDraftVersion = Boolean(!draftMode && editingVersion);
+	const editingVersionName = draftMode
+		? draftName || "Untitled Draft"
+		: editingVersion?.name ?? "Version";
+	const editingVersionIsLive = draftMode ? false : Boolean(editingVersion?.isActive);
+	const modeTitle = draftMode ? "Creating" : "Editing";
+	const modeBadgeLabel = draftMode
+		? "Draft (Unsaved)"
+		: editingVersionIsLive
+			? "Live"
+			: "Draft";
 
 	return (
 		<main className="space-y-5 pb-10">
@@ -1254,7 +1407,7 @@ export default function PortfolioEditorPage() {
 						</Badge>
 						<div className="flex flex-wrap items-center gap-2">
 							<CardTitle className="text-xl sm:text-2xl">
-								Editing: {editingVersionName}
+								{modeTitle}: {editingVersionName}
 							</CardTitle>
 							<Badge
 								variant={editingVersionIsLive ? "secondary" : "outline"}
@@ -1264,27 +1417,63 @@ export default function PortfolioEditorPage() {
 										: undefined
 								}
 							>
-								{editingVersionIsLive ? "Live" : "Draft"}
+								{modeBadgeLabel}
 							</Badge>
 						</div>
 						<CardDescription>
 							Public URL: <span className="font-medium">/{portfolio.username}</span>
 						</CardDescription>
 					</div>
-					<CardAction className="flex flex-wrap items-center justify-end gap-2">
-						<span className="text-xs text-muted-foreground">
-							Tip: <span className="font-medium">Ctrl/Cmd + S</span>
-						</span>
-						<Button
-							type="button"
-							size="sm"
-							onClick={() => saveMutation.mutate()}
-							disabled={saveMutation.isPending}
-						>
-							<Save className="size-4" />
-							{saveMutation.isPending ? "Saving..." : "Save changes"}
-						</Button>
-					</CardAction>
+						<CardAction className="flex flex-col items-end gap-2 sm:flex-row sm:items-center">
+							{canManageSelectedDraftVersion ? (
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									className="h-9 px-3"
+									onClick={() => setRenameDialogOpen(true)}
+								>
+									<Pencil className="size-4" />
+									Rename
+								</Button>
+							) : null}
+							{canManageSelectedDraftVersion ? (
+								<Button
+									type="button"
+									size="sm"
+									variant="outline"
+									className="h-9 px-3 text-destructive hover:text-destructive"
+									onClick={() => setDeleteDialogOpen(true)}
+									disabled={Boolean(editingVersion?.isActive)}
+								>
+									<Trash2 className="size-4" />
+									Delete
+								</Button>
+							) : null}
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								className="h-9 px-3"
+								onClick={() => setPreviewOpen(true)}
+							>
+								<Eye className="size-4" />
+								Preview
+							</Button>
+							<Button
+								type="button"
+								size="sm"
+								className="h-9 px-3"
+								onClick={() => saveMutation.mutate()}
+								disabled={saveMutation.isPending}
+							>
+								<Save className="size-4" />
+								{saveMutation.isPending ? "Saving..." : "Save changes"}
+							</Button>
+							<span className="text-xs text-muted-foreground">
+								Ctrl/Cmd + S
+							</span>
+						</CardAction>
 				</CardHeader>
 			</Card>
 
@@ -2593,10 +2782,115 @@ export default function PortfolioEditorPage() {
 						</CardContent>
 					</Card>
 				</TabsContent>
-			</Tabs>
+				</Tabs>
 
-			{isCustomSectionEditorOpen && (
-				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3 sm:p-6">
+				{previewOpen && (
+					<div className="fixed inset-0 z-50 bg-black/60 p-3 sm:p-6">
+						<div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl">
+							<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
+								<div>
+									<div className="text-sm font-semibold">Quick preview</div>
+									<div className="text-xs text-muted-foreground">
+										Live output from your current unsaved editor state.
+									</div>
+								</div>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									onClick={() => setPreviewOpen(false)}
+								>
+									Close
+								</Button>
+							</div>
+							<div className="h-full overflow-auto p-3 sm:p-4">
+								<PortfolioView portfolio={portfolio} />
+							</div>
+						</div>
+					</div>
+				)}
+
+				{renameDialogOpen && canManageSelectedDraftVersion ? (
+					<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+						<Card className="w-full max-w-md border-border/70 shadow-xl">
+							<CardHeader>
+								<CardTitle className="text-lg">Rename version</CardTitle>
+								<CardDescription>
+									Update the version name.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="space-y-3">
+								<Input
+									value={renameValue}
+									onChange={(event) => setRenameValue(event.target.value)}
+									maxLength={120}
+									placeholder="Version name"
+								/>
+								<div className="flex justify-end gap-2">
+									<Button
+										type="button"
+										variant="outline"
+										onClick={() => setRenameDialogOpen(false)}
+										disabled={renameVersionMutation.isPending}
+									>
+										Cancel
+									</Button>
+									<Button
+										type="button"
+										onClick={() => {
+											const nextName = renameValue.trim();
+											if (!nextName) {
+												setToast({
+													type: "error",
+													message: "Version name is required.",
+												});
+												return;
+											}
+											renameVersionMutation.mutate(nextName);
+										}}
+										disabled={renameVersionMutation.isPending}
+									>
+										{renameVersionMutation.isPending ? "Saving..." : "Save name"}
+									</Button>
+								</div>
+							</CardContent>
+						</Card>
+					</div>
+				) : null}
+
+				{deleteDialogOpen && canManageSelectedDraftVersion ? (
+					<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+						<Card className="w-full max-w-md border-border/70 shadow-xl">
+							<CardHeader>
+								<CardTitle className="text-lg">Delete version?</CardTitle>
+								<CardDescription>
+									Delete this version? This cannot be undone.
+								</CardDescription>
+							</CardHeader>
+							<CardContent className="flex justify-end gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setDeleteDialogOpen(false)}
+									disabled={deleteVersionMutation.isPending}
+								>
+									Cancel
+								</Button>
+								<Button
+									type="button"
+									variant="destructive"
+									onClick={() => deleteVersionMutation.mutate()}
+									disabled={deleteVersionMutation.isPending}
+								>
+									{deleteVersionMutation.isPending ? "Deleting..." : "Delete"}
+								</Button>
+							</CardContent>
+						</Card>
+					</div>
+				) : null}
+
+				{isCustomSectionEditorOpen && (
+					<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-3 sm:p-6">
 					<div className="w-full max-w-4xl overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-foreground/10">
 						<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
 							<div>

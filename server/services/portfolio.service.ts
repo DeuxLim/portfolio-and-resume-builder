@@ -1,4 +1,4 @@
-import type { RowDataPacket } from "mysql2";
+import type { ResultSetHeader, RowDataPacket } from "mysql2";
 import { getDb } from "../lib/db.js";
 import {
 	mapPortfolioRow,
@@ -8,6 +8,8 @@ import {
 import { buildStarterPortfolio } from "../../shared/defaults/portfolio.js";
 import type {
 	EditablePortfolio,
+	PortfolioVersionBase,
+	PortfolioVersionDetail,
 	PortfolioVersionSummary,
 	PublicPortfolio,
 	SessionUser,
@@ -49,13 +51,105 @@ type PortfolioVersionRow = RowDataPacket & {
 	user_id: number;
 	name: string;
 	is_active: number;
-	snapshot_json: string | null;
+	snapshot_json: unknown;
 	created_at?: Date;
 	updated_at?: Date;
 };
 
+type UserRow = RowDataPacket & {
+	id: number;
+	email: string;
+	username: string;
+	full_name: string;
+};
+
 let versionsTableReady: Promise<void> | null = null;
 let portfoliosLayoutColumnReady: Promise<void> | null = null;
+let portfoliosPublicSlugColumnReady: Promise<void> | null = null;
+
+const RESERVED_PUBLIC_SLUGS = new Set([
+	"api",
+	"dashboard",
+	"login",
+	"logout",
+	"signup",
+	"sample",
+	"health",
+	"assets",
+	"uploads",
+	"favicon.ico",
+]);
+
+export const normalizePublicSlug = (value: string) =>
+	value
+		.trim()
+		.toLowerCase()
+		.replace(/[^a-z0-9-]/g, "")
+		.replace(/-+/g, "-")
+		.replace(/^-|-$/g, "")
+		.slice(0, 40);
+
+const isReservedPublicSlug = (slug: string) => RESERVED_PUBLIC_SLUGS.has(slug);
+
+const ensurePortfoliosPublicSlugColumn = async () => {
+	if (portfoliosPublicSlugColumnReady) {
+		await portfoliosPublicSlugColumnReady;
+		return;
+	}
+
+	const db = getDb();
+	portfoliosPublicSlugColumnReady = (async () => {
+		const [columnRows] = await db.query<RowDataPacket[]>(
+			`
+				SELECT COUNT(*) AS total
+				FROM information_schema.COLUMNS
+				WHERE TABLE_SCHEMA = DATABASE()
+					AND TABLE_NAME = 'portfolios'
+					AND COLUMN_NAME = 'public_slug'
+			`,
+		);
+		const hasPublicSlugColumn = Number(columnRows[0]?.total ?? 0) > 0;
+
+		if (!hasPublicSlugColumn) {
+			await db.query(
+				`
+					ALTER TABLE portfolios
+					ADD COLUMN public_slug VARCHAR(40) NULL AFTER user_id
+				`,
+			);
+		}
+
+		await db.query(
+			`
+				UPDATE portfolios p
+				INNER JOIN users u ON u.id = p.user_id
+				SET p.public_slug = u.username
+				WHERE p.public_slug IS NULL OR TRIM(p.public_slug) = ''
+			`,
+		);
+
+		const [indexRows] = await db.query<RowDataPacket[]>(
+			`
+				SELECT COUNT(*) AS total
+				FROM information_schema.STATISTICS
+				WHERE TABLE_SCHEMA = DATABASE()
+					AND TABLE_NAME = 'portfolios'
+					AND INDEX_NAME = 'uniq_portfolios_public_slug'
+			`,
+		);
+		const hasUniqueIndex = Number(indexRows[0]?.total ?? 0) > 0;
+		if (!hasUniqueIndex) {
+			await db.query(
+				`
+					ALTER TABLE portfolios
+					ADD UNIQUE INDEX uniq_portfolios_public_slug (public_slug)
+				`,
+			);
+		}
+	})();
+
+	await portfoliosPublicSlugColumnReady;
+};
 
 const ensurePortfoliosLayoutColumn = async () => {
 	if (portfoliosLayoutColumnReady) {
@@ -144,7 +238,197 @@ const sanitizeVersionName = (name: string) => {
 	return value ? value.slice(0, 120) : "";
 };
 
+const parseSnapshotJson = (
+	snapshotJson: unknown,
+): Partial<EditablePortfolio> => {
+	if (!snapshotJson) return {};
+
+	if (typeof snapshotJson === "string") {
+		try {
+			return JSON.parse(snapshotJson) as Partial<EditablePortfolio>;
+		} catch {
+			return {};
+		}
+	}
+
+	if (typeof snapshotJson === "object") {
+		return snapshotJson as Partial<EditablePortfolio>;
+	}
+
+	return {};
+};
+
+const parseVersionSnapshot = (
+	version: PortfolioVersionRow,
+): Partial<EditablePortfolio> => parseSnapshotJson(version.snapshot_json);
+
+const normalizeForComparison = (value: unknown): unknown => {
+	if (Array.isArray(value)) {
+		return value.map((entry) => normalizeForComparison(entry));
+	}
+
+	if (value && typeof value === "object") {
+		const entries = Object.entries(value as Record<string, unknown>).sort(
+			([leftKey], [rightKey]) => leftKey.localeCompare(rightKey),
+		);
+		return Object.fromEntries(
+			entries.map(([key, entry]) => [key, normalizeForComparison(entry)]),
+		);
+	}
+
+	return value;
+};
+
+const snapshotsEqual = (
+	left: Partial<EditablePortfolio>,
+	right: Partial<EditablePortfolio>,
+) =>
+	JSON.stringify(normalizeForComparison(left)) ===
+	JSON.stringify(normalizeForComparison(right));
+
+const mergeSnapshotWithLive = (
+	livePortfolio: EditablePortfolio,
+	snapshot: Partial<EditablePortfolio>,
+): EditablePortfolio => ({
+	...livePortfolio,
+	...snapshot,
+	username: livePortfolio.username,
+	email: livePortfolio.email,
+	hasCustomGeminiKey: Boolean(
+		String(snapshot.geminiApiKey ?? livePortfolio.geminiApiKey ?? "").trim(),
+	),
+});
+
+const getVersionByUserId = async (
+	userId: number,
+	versionId: number,
+): Promise<PortfolioVersionRow | null> => {
+	await ensurePortfolioVersionsTable();
+	await ensurePortfoliosPublicSlugColumn();
+	const db = getDb();
+	const [rows] = await db.query<PortfolioVersionRow[]>(
+		`
+			SELECT id, user_id, name, is_active, snapshot_json, created_at, updated_at
+			FROM portfolio_versions
+			WHERE id = ? AND user_id = ?
+			LIMIT 1
+		`,
+		[versionId, userId],
+	);
+	return rows[0] ?? null;
+};
+
+const getLatestVersionByUserId = async (
+	userId: number,
+): Promise<PortfolioVersionRow | null> => {
+	await ensurePortfolioVersionsTable();
+	await ensurePortfoliosPublicSlugColumn();
+	const db = getDb();
+	const [rows] = await db.query<PortfolioVersionRow[]>(
+		`
+			SELECT id, user_id, name, is_active, snapshot_json, created_at, updated_at
+			FROM portfolio_versions
+			WHERE user_id = ?
+			ORDER BY updated_at DESC, id DESC
+			LIMIT 1
+		`,
+		[userId],
+	);
+	return rows[0] ?? null;
+};
+
+const getAllVersionsByUserId = async (
+	userId: number,
+): Promise<PortfolioVersionRow[]> => {
+	await ensurePortfolioVersionsTable();
+	await ensurePortfoliosPublicSlugColumn();
+	const db = getDb();
+	const [rows] = await db.query<PortfolioVersionRow[]>(
+		`
+			SELECT id, user_id, name, is_active, snapshot_json, created_at, updated_at
+			FROM portfolio_versions
+			WHERE user_id = ?
+		`,
+		[userId],
+	);
+	return rows;
+};
+
+const resolveVersionBasePortfolioByUserId = async (
+	userId: number,
+	base: PortfolioVersionBase,
+): Promise<EditablePortfolio | null> => {
+	await ensurePortfoliosPublicSlugColumn();
+	const livePortfolio = await getEditablePortfolioByUserId(userId);
+	if (!livePortfolio) return null;
+
+	if (base === "live") {
+		return livePortfolio;
+	}
+
+	if (base === "latest") {
+		const latestVersion = await getLatestVersionByUserId(userId);
+		if (!latestVersion) return livePortfolio;
+		const latestSnapshot = parseVersionSnapshot(latestVersion);
+		return mergeSnapshotWithLive(livePortfolio, latestSnapshot);
+	}
+
+	const user = await getUserById(userId);
+	if (!user) return livePortfolio;
+	return buildBlankPortfolio(user);
+};
+
+const getUserById = async (userId: number): Promise<UserRow | null> => {
+	await ensurePortfoliosPublicSlugColumn();
+	const db = getDb();
+	const [rows] = await db.query<UserRow[]>(
+		`
+			SELECT id, email, username, full_name
+			FROM users
+			WHERE id = ?
+			LIMIT 1
+		`,
+		[userId],
+	);
+	return rows[0] ?? null;
+};
+
+const buildBlankPortfolio = (user: UserRow): EditablePortfolio => {
+	const starter = buildStarterPortfolio(user.username, user.email);
+	return {
+		username: user.username,
+		fullName: "",
+		headline: "",
+		location: "",
+		experienceSummary: "",
+		education: "",
+		availability: "",
+		email: user.email,
+		phone: "",
+		avatarUrl: "/default-avatar.svg",
+		coverUrl: "/default-cover.svg",
+		githubUrl: "",
+		githubUsername: "",
+		linkedinUrl: "",
+		about: [],
+		timeline: [],
+		experiences: [],
+		techCategories: [],
+		projects: [],
+		customSections: [],
+		layout: {
+			sectionOrder: [...starter.layout.sectionOrder],
+			sectionSpans: { ...starter.layout.sectionSpans },
+			sectionHeights: { ...starter.layout.sectionHeights },
+		},
+		chatEnabled: true,
+		geminiApiKey: "",
+		hasCustomGeminiKey: false,
+	};
+};
+
 const getNextAutoVersionName = async (userId: number) => {
+	await ensurePortfoliosPublicSlugColumn();
 	const db = getDb();
 	const [rows] = await db.query<RowDataPacket[]>(
 		"SELECT name FROM portfolio_versions WHERE user_id = ?",
@@ -170,13 +454,14 @@ export const getPortfolioByUsername = async (
 	username: string,
 ): Promise<PublicPortfolio | null> => {
 	await ensurePortfoliosLayoutColumn();
+	await ensurePortfoliosPublicSlugColumn();
 	const db = getDb();
 	const [rows] = await db.query<PortfolioQueryRow[]>(
 		`
 			SELECT
 				u.id AS user_id,
 				u.email,
-				u.username,
+				COALESCE(NULLIF(p.public_slug, ''), u.username) AS username,
 				p.full_name,
 				p.headline,
 				p.location,
@@ -202,10 +487,10 @@ export const getPortfolioByUsername = async (
 				p.updated_at
 			FROM portfolios p
 			INNER JOIN users u ON u.id = p.user_id
-			WHERE u.username = ?
+			WHERE LOWER(COALESCE(NULLIF(p.public_slug, ''), u.username)) = ?
 			LIMIT 1
 		`,
-		[username],
+		[username.trim().toLowerCase()],
 	);
 
 	const row = rows[0];
@@ -233,13 +518,14 @@ export const getEditablePortfolioByUserId = async (
 	userId: number,
 ): Promise<EditablePortfolio | null> => {
 	await ensurePortfoliosLayoutColumn();
+	await ensurePortfoliosPublicSlugColumn();
 	const db = getDb();
 	const [rows] = await db.query<PortfolioQueryRow[]>(
 		`
 			SELECT
 				u.id AS user_id,
 				u.email,
-				u.username,
+				COALESCE(NULLIF(p.public_slug, ''), u.username) AS username,
 				p.full_name,
 				p.headline,
 				p.location,
@@ -280,6 +566,7 @@ const insertVersionSnapshot = async (
 	options?: { name?: string; isActive?: boolean },
 ) => {
 	await ensurePortfolioVersionsTable();
+	await ensurePortfoliosPublicSlugColumn();
 	const db = getDb();
 	const providedName = sanitizeVersionName(options?.name ?? "");
 	const name = providedName || (await getNextAutoVersionName(userId));
@@ -307,6 +594,7 @@ const applyPortfolioUpdateByUserId = async (
 	portfolio: EditablePortfolio,
 ) => {
 	await ensurePortfoliosLayoutColumn();
+	await ensurePortfoliosPublicSlugColumn();
 	const db = getDb();
 	const serialized = serializePortfolio(portfolio);
 
@@ -370,6 +658,7 @@ export const syncActiveVersionByUserId = async (
 	portfolio: EditablePortfolio,
 ) => {
 	await ensurePortfolioVersionsTable();
+	await ensurePortfoliosPublicSlugColumn();
 	const db = getDb();
 	const snapshotJson = JSON.stringify(portfolio);
 	const [activeRows] = await db.query<PortfolioVersionRow[]>(
@@ -404,6 +693,7 @@ export const listPortfolioVersionsByUserId = async (
 	userId: number,
 ): Promise<PortfolioVersionSummary[]> => {
 	await ensurePortfolioVersionsTable();
+	await ensurePortfoliosPublicSlugColumn();
 	const db = getDb();
 	const [rows] = await db.query<PortfolioVersionRow[]>(
 		`
@@ -420,27 +710,47 @@ export const listPortfolioVersionsByUserId = async (
 
 export const createPortfolioVersionByUserId = async (
 	userId: number,
-	input?: { name?: string },
-): Promise<PortfolioVersionSummary[]> => {
-	const portfolio = await getEditablePortfolioByUserId(userId);
+	input?: { name?: string; base?: PortfolioVersionBase },
+): Promise<PortfolioVersionSummary | "duplicate_snapshot" | null> => {
+	const base = input?.base ?? "latest";
+	const sourcePortfolio = await resolveVersionBasePortfolioByUserId(userId, base);
+	if (!sourcePortfolio) return null;
+	const livePortfolio = await getEditablePortfolioByUserId(userId);
+	if (!livePortfolio) return null;
 
-	if (!portfolio) {
-		return [];
+	const existingVersions = await getAllVersionsByUserId(userId);
+	for (const existingVersion of existingVersions) {
+		const existingSnapshot = parseVersionSnapshot(existingVersion);
+		const existingPortfolio = mergeSnapshotWithLive(
+			livePortfolio,
+			existingSnapshot,
+		);
+		if (snapshotsEqual(sourcePortfolio, existingPortfolio)) {
+			return "duplicate_snapshot";
+		}
 	}
 
-	await insertVersionSnapshot(userId, portfolio, {
+	await insertVersionSnapshot(userId, sourcePortfolio, {
 		...(input?.name ? { name: input.name } : {}),
 		isActive: false,
 	});
 
-	return listPortfolioVersionsByUserId(userId);
+	const created = await getLatestVersionByUserId(userId);
+	return created ? toVersionSummary(created) : null;
 };
+
+export const getPortfolioVersionBasePreviewByUserId = async (
+	userId: number,
+	base: PortfolioVersionBase,
+): Promise<EditablePortfolio | null> =>
+	resolveVersionBasePortfolioByUserId(userId, base);
 
 export const activatePortfolioVersionByUserId = async (
 	userId: number,
 	versionId: number,
 ): Promise<EditablePortfolio | null> => {
 	await ensurePortfolioVersionsTable();
+	await ensurePortfoliosPublicSlugColumn();
 	const db = getDb();
 	const [rows] = await db.query<PortfolioVersionRow[]>(
 		`
@@ -462,15 +772,7 @@ export const activatePortfolioVersionByUserId = async (
 		return null;
 	}
 
-	let snapshot: Partial<EditablePortfolio> = {};
-
-	if (version.snapshot_json) {
-		try {
-			snapshot = JSON.parse(version.snapshot_json) as Partial<EditablePortfolio>;
-		} catch {
-			snapshot = {};
-		}
-	}
+	const snapshot = parseSnapshotJson(version.snapshot_json);
 
 	const nextPortfolio: EditablePortfolio = {
 		...current,
@@ -504,6 +806,7 @@ export const deletePortfolioVersionByUserId = async (
 	versionId: number,
 ): Promise<"deleted" | "not_found" | "active_version"> => {
 	await ensurePortfolioVersionsTable();
+	await ensurePortfoliosPublicSlugColumn();
 	const db = getDb();
 	const [rows] = await db.query<PortfolioVersionRow[]>(
 		`
@@ -536,8 +839,103 @@ export const deletePortfolioVersionByUserId = async (
 	return "deleted";
 };
 
+export const renamePortfolioVersionByUserId = async (
+	userId: number,
+	versionId: number,
+	name: string,
+): Promise<PortfolioVersionSummary | "not_found" | "invalid_name"> => {
+	await ensurePortfolioVersionsTable();
+	await ensurePortfoliosPublicSlugColumn();
+	const db = getDb();
+	const nextName = sanitizeVersionName(name);
+
+	if (!nextName) {
+		return "invalid_name";
+	}
+
+	const [result] = await db.query<ResultSetHeader>(
+		`
+			UPDATE portfolio_versions
+			SET name = ?, updated_at = CURRENT_TIMESTAMP
+			WHERE id = ? AND user_id = ?
+			LIMIT 1
+		`,
+		[nextName, versionId, userId],
+	);
+
+	if (Number(result.affectedRows ?? 0) <= 0) {
+		return "not_found";
+	}
+
+	const [rows] = await db.query<PortfolioVersionRow[]>(
+		`
+			SELECT id, user_id, name, is_active, snapshot_json, created_at, updated_at
+			FROM portfolio_versions
+			WHERE id = ? AND user_id = ?
+			LIMIT 1
+		`,
+		[versionId, userId],
+	);
+	const version = rows[0];
+
+	return version ? toVersionSummary(version) : "not_found";
+};
+
+export const getPortfolioVersionDetailByUserId = async (
+	userId: number,
+	versionId: number,
+): Promise<PortfolioVersionDetail | null> => {
+	const version = await getVersionByUserId(userId, versionId);
+	if (!version) return null;
+	const livePortfolio = await getEditablePortfolioByUserId(userId);
+	if (!livePortfolio) return null;
+
+	const snapshot = parseVersionSnapshot(version);
+	const portfolio: EditablePortfolio = {
+		...livePortfolio,
+		...snapshot,
+		username: livePortfolio.username,
+		email: livePortfolio.email,
+		hasCustomGeminiKey: Boolean(
+			String(snapshot.geminiApiKey ?? livePortfolio.geminiApiKey ?? "").trim(),
+		),
+	};
+
+	return {
+		version: toVersionSummary(version),
+		portfolio,
+	};
+};
+
+export const updatePortfolioVersionSnapshotByUserId = async (
+	userId: number,
+	versionId: number,
+	portfolio: EditablePortfolio,
+): Promise<PortfolioVersionDetail | "not_found" | "active_version"> => {
+	await ensurePortfolioVersionsTable();
+	await ensurePortfoliosPublicSlugColumn();
+	const version = await getVersionByUserId(userId, versionId);
+	if (!version) return "not_found";
+	if (Boolean(version.is_active)) return "active_version";
+
+	const db = getDb();
+	await db.query(
+		`
+			UPDATE portfolio_versions
+			SET snapshot_json = ?, updated_at = CURRENT_TIMESTAMP
+			WHERE id = ? AND user_id = ?
+			LIMIT 1
+		`,
+		[JSON.stringify(portfolio), versionId, userId],
+	);
+
+	const detail = await getPortfolioVersionDetailByUserId(userId, versionId);
+	return detail ?? "not_found";
+};
+
 export const createStarterPortfolio = async (user: SessionUser) => {
 	await ensurePortfoliosLayoutColumn();
+	await ensurePortfoliosPublicSlugColumn();
 	const db = getDb();
 	const starter = buildStarterPortfolio(user.username, user.email, user.fullName);
 	const serialized = serializePortfolio(starter);
@@ -546,6 +944,7 @@ export const createStarterPortfolio = async (user: SessionUser) => {
 		`
 			INSERT INTO portfolios (
 				user_id,
+				public_slug,
 				full_name,
 				headline,
 				location,
@@ -568,10 +967,11 @@ export const createStarterPortfolio = async (user: SessionUser) => {
 				chat_enabled,
 				gemini_api_key
 			)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 		[
 			user.id,
+			user.username,
 			serialized.fullName,
 			serialized.headline,
 			serialized.location,
@@ -608,6 +1008,7 @@ export const updatePortfolioByUserId = async (
 	userId: number,
 	portfolio: EditablePortfolio,
 ) => {
+	await ensurePortfoliosPublicSlugColumn();
 	await applyPortfolioUpdateByUserId(userId, portfolio);
 	await syncActiveVersionByUserId(userId, portfolio);
 
@@ -618,6 +1019,7 @@ export const updatePortfolioAvatarByUserId = async (
 	userId: number,
 	avatarUrl: string,
 ) => {
+	await ensurePortfoliosPublicSlugColumn();
 	const current = await getEditablePortfolioByUserId(userId);
 
 	if (!current) {
@@ -639,6 +1041,7 @@ export const updatePortfolioCoverByUserId = async (
 	userId: number,
 	coverUrl: string,
 ) => {
+	await ensurePortfoliosPublicSlugColumn();
 	const current = await getEditablePortfolioByUserId(userId);
 
 	if (!current) {
@@ -654,4 +1057,53 @@ export const updatePortfolioCoverByUserId = async (
 	await syncActiveVersionByUserId(userId, nextPortfolio);
 
 	return getEditablePortfolioByUserId(userId);
+};
+
+export const updatePortfolioPublicSlugByUserId = async (
+	userId: number,
+	input: string,
+): Promise<
+	EditablePortfolio | "not_found" | "invalid_slug" | "reserved_slug" | "slug_taken"
+> => {
+	await ensurePortfoliosPublicSlugColumn();
+	const slug = normalizePublicSlug(input);
+
+	if (!slug || slug.length < 3) {
+		return "invalid_slug";
+	}
+
+	if (isReservedPublicSlug(slug)) {
+		return "reserved_slug";
+	}
+
+	const current = await getEditablePortfolioByUserId(userId);
+	if (!current) {
+		return "not_found";
+	}
+
+	if (current.username === slug) {
+		return current;
+	}
+
+	const db = getDb();
+	try {
+		await db.query(
+			`
+				UPDATE portfolios
+				SET public_slug = ?, updated_at = CURRENT_TIMESTAMP
+				WHERE user_id = ?
+				LIMIT 1
+			`,
+			[slug, userId],
+		);
+	} catch (error) {
+		const code = (error as { code?: string }).code;
+		if (code === "ER_DUP_ENTRY") {
+			return "slug_taken";
+		}
+		throw error;
+	}
+
+	const updated = await getEditablePortfolioByUserId(userId);
+	return updated ?? "not_found";
 };

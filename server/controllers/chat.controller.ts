@@ -36,7 +36,7 @@ const getChatPortfolio = async (username: string) => {
 		`
 			SELECT
 				u.email,
-				u.username,
+				COALESCE(NULLIF(p.public_slug, ''), u.username) AS username,
 				p.full_name,
 				p.headline,
 				p.location,
@@ -60,10 +60,10 @@ const getChatPortfolio = async (username: string) => {
 				p.gemini_api_key
 			FROM portfolios p
 			INNER JOIN users u ON u.id = p.user_id
-			WHERE u.username = ?
+			WHERE LOWER(COALESCE(NULLIF(p.public_slug, ''), u.username)) = ?
 			LIMIT 1
 		`,
-		[username],
+		[username.trim().toLowerCase()],
 	);
 
 	return rows[0] ?? null;
@@ -74,7 +74,7 @@ const sendMessage = async (req: Request, res: Response) => {
 	const username = String(req.body.username ?? "").trim().toLowerCase();
 
 	if (!username) {
-		res.status(400).json({ message: "Portfolio username is required." });
+		res.status(400).json({ message: "Portfolio URL slug is required." });
 		return;
 	}
 

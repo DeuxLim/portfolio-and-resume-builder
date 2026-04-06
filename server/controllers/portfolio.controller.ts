@@ -8,6 +8,7 @@ import {
 } from "../../shared/defaults/portfolio.js";
 import type {
 	EditablePortfolio,
+	PortfolioVersionBase,
 	PortfolioSectionKey,
 	PortfolioSectionSpan,
 } from "../../shared/types/portfolio.types.js";
@@ -21,11 +22,16 @@ import {
 	createPortfolioVersionByUserId,
 	deletePortfolioVersionByUserId,
 	getEditablePortfolioByUserId,
+	getPortfolioVersionDetailByUserId,
+	getPortfolioVersionBasePreviewByUserId,
 	getPortfolioByUsername,
 	listPortfolioVersionsByUserId,
+	renamePortfolioVersionByUserId,
+	updatePortfolioVersionSnapshotByUserId,
 	updatePortfolioAvatarByUserId,
 	updatePortfolioCoverByUserId,
 	updatePortfolioByUserId,
+	updatePortfolioPublicSlugByUserId,
 } from "../services/portfolio.service.js";
 
 const normalizeArray = (value: unknown) =>
@@ -207,15 +213,56 @@ const getMyPortfolio = async (req: Request, res: Response) => {
 };
 
 const updateMyPortfolio = async (req: Request, res: Response) => {
+	const current = await getEditablePortfolioByUserId(req.auth!.userId);
+
+	if (!current) {
+		res.status(404).json({ message: "Portfolio not found." });
+		return;
+	}
+
 	const payload = sanitizeEditablePortfolio(
 		req.body.portfolio,
-		req.auth!.username,
+		current.username,
 		req.auth!.email,
 		req.auth!.fullName,
 	);
 
 	const portfolio = await updatePortfolioByUserId(req.auth!.userId, payload);
 	res.json({ portfolio });
+};
+
+const updateMyPublicSlug = async (req: Request, res: Response) => {
+	const slug = String(req.body?.slug ?? "");
+	const result = await updatePortfolioPublicSlugByUserId(req.auth!.userId, slug);
+
+	if (result === "not_found") {
+		res.status(404).json({ message: "Portfolio not found." });
+		return;
+	}
+
+	if (result === "invalid_slug") {
+		res.status(400).json({
+			message:
+				"Public URL must be at least 3 characters and can only use lowercase letters, numbers, and hyphens.",
+		});
+		return;
+	}
+
+	if (result === "reserved_slug") {
+		res.status(400).json({
+			message: "That public URL is reserved. Please choose a different one.",
+		});
+		return;
+	}
+
+	if (result === "slug_taken") {
+		res.status(409).json({
+			message: "That public URL is already taken.",
+		});
+		return;
+	}
+
+	res.json({ portfolio: result });
 };
 
 const uploadMyAvatar = async (req: Request, res: Response) => {
@@ -295,12 +342,62 @@ const listMyPortfolioVersions = async (req: Request, res: Response) => {
 	res.json({ versions });
 };
 
+const getMyPortfolioVersion = async (req: Request, res: Response) => {
+	const versionId = Number(req.params.versionId);
+	if (!Number.isFinite(versionId) || versionId <= 0) {
+		res.status(400).json({ message: "Invalid version id." });
+		return;
+	}
+
+	const detail = await getPortfolioVersionDetailByUserId(req.auth!.userId, versionId);
+	if (!detail) {
+		res.status(404).json({ message: "Version not found." });
+		return;
+	}
+
+	res.json(detail);
+};
+
+const getMyPortfolioVersionPreview = async (req: Request, res: Response) => {
+	const baseInput = String(req.query?.base ?? "latest").toLowerCase();
+	const base: PortfolioVersionBase =
+		baseInput === "blank" || baseInput === "live" || baseInput === "latest"
+			? (baseInput as PortfolioVersionBase)
+			: "latest";
+	const portfolio = await getPortfolioVersionBasePreviewByUserId(
+		req.auth!.userId,
+		base,
+	);
+	if (!portfolio) {
+		res.status(404).json({ message: "Portfolio not found." });
+		return;
+	}
+	res.json({ portfolio });
+};
+
 const createMyPortfolioVersion = async (req: Request, res: Response) => {
 	const name = String(req.body?.name ?? "");
-	const versions = await createPortfolioVersionByUserId(req.auth!.userId, {
+	const baseInput = String(req.body?.base ?? "latest").toLowerCase();
+	const base: PortfolioVersionBase =
+		baseInput === "blank" || baseInput === "live" || baseInput === "latest"
+			? (baseInput as PortfolioVersionBase)
+			: "latest";
+	const version = await createPortfolioVersionByUserId(req.auth!.userId, {
 		name,
+		base,
 	});
-	res.status(201).json({ versions });
+	if (version === "duplicate_snapshot") {
+		res.status(409).json({
+			message:
+				"No changes detected from the most recent version. Edit the current draft instead.",
+		});
+		return;
+	}
+	if (!version) {
+		res.status(404).json({ message: "Portfolio not found." });
+		return;
+	}
+	res.status(201).json({ version });
 };
 
 const activateMyPortfolioVersion = async (req: Request, res: Response) => {
@@ -352,16 +449,90 @@ const deleteMyPortfolioVersion = async (req: Request, res: Response) => {
 	res.status(204).send();
 };
 
+const renameMyPortfolioVersion = async (req: Request, res: Response) => {
+	const versionId = Number(req.params.versionId);
+
+	if (!Number.isFinite(versionId) || versionId <= 0) {
+		res.status(400).json({ message: "Invalid version id." });
+		return;
+	}
+
+	const name = String(req.body?.name ?? "");
+	const result = await renamePortfolioVersionByUserId(
+		req.auth!.userId,
+		versionId,
+		name,
+	);
+
+	if (result === "not_found") {
+		res.status(404).json({ message: "Version not found." });
+		return;
+	}
+
+	if (result === "invalid_name") {
+		res.status(400).json({ message: "Version name is required." });
+		return;
+	}
+
+	res.json({ version: result });
+};
+
+const updateMyPortfolioVersionSnapshot = async (req: Request, res: Response) => {
+	const versionId = Number(req.params.versionId);
+	if (!Number.isFinite(versionId) || versionId <= 0) {
+		res.status(400).json({ message: "Invalid version id." });
+		return;
+	}
+
+	const current = await getEditablePortfolioByUserId(req.auth!.userId);
+	if (!current) {
+		res.status(404).json({ message: "Portfolio not found." });
+		return;
+	}
+
+	const payload = sanitizeEditablePortfolio(
+		req.body.portfolio,
+		current.username,
+		req.auth!.email,
+		req.auth!.fullName,
+	);
+
+	const result = await updatePortfolioVersionSnapshotByUserId(
+		req.auth!.userId,
+		versionId,
+		payload,
+	);
+
+	if (result === "not_found") {
+		res.status(404).json({ message: "Version not found." });
+		return;
+	}
+
+	if (result === "active_version") {
+		res.status(409).json({
+			message: "Live version should be saved from the main portfolio endpoint.",
+		});
+		return;
+	}
+
+	res.json(result);
+};
+
 const PortfolioController = {
 	getPublicPortfolio,
 	getMyPortfolio,
 	updateMyPortfolio,
+	updateMyPublicSlug,
 	uploadMyAvatar,
 	uploadMyCover,
 	listMyPortfolioVersions,
+	getMyPortfolioVersion,
+	getMyPortfolioVersionPreview,
 	createMyPortfolioVersion,
 	activateMyPortfolioVersion,
 	deleteMyPortfolioVersion,
+	renameMyPortfolioVersion,
+	updateMyPortfolioVersionSnapshot,
 };
 
 export default PortfolioController;

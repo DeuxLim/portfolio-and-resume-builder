@@ -26,6 +26,7 @@ type UserLookupRow = RowDataPacket & {
 	email: string;
 	username: string;
 	full_name: string;
+	portfolio_slug?: string;
 };
 
 let resumesTableReady: Promise<void> | null = null;
@@ -144,9 +145,15 @@ export const getResumePdfByUsername = async (username: string) => {
 	const normalizedUsername = username.trim().toLowerCase();
 	const [users] = await db.query<UserLookupRow[]>(
 		`
-			SELECT id, email, username, full_name
-			FROM users
-			WHERE LOWER(username) = ?
+			SELECT
+				u.id,
+				u.email,
+				u.username,
+				u.full_name,
+				COALESCE(NULLIF(p.public_slug, ''), u.username) AS portfolio_slug
+			FROM users u
+			INNER JOIN portfolios p ON p.user_id = u.id
+			WHERE LOWER(COALESCE(NULLIF(p.public_slug, ''), u.username)) = ?
 			LIMIT 1
 		`,
 		[normalizedUsername],
@@ -156,16 +163,21 @@ export const getResumePdfByUsername = async (username: string) => {
 		return null;
 	}
 
-	const portfolio = await getPortfolioByUsername(user.username);
+	const portfolio = await getPortfolioByUsername(normalizedUsername);
 	const [rows] = await db.query<ResumeQueryRow[]>(
 		`
-			SELECT r.user_id, r.template_key, r.content_json, r.layout_json, r.created_at, r.updated_at
+			SELECT
+				r.user_id,
+				r.template_key,
+				r.content_json,
+				r.layout_json,
+				r.created_at,
+				r.updated_at
 			FROM resumes r
-			INNER JOIN users u ON u.id = r.user_id
-			WHERE u.username = ?
+			WHERE r.user_id = ?
 			LIMIT 1
 		`,
-		[user.username],
+		[user.id],
 	);
 
 	const fallback = portfolio

@@ -1,4 +1,4 @@
-import { Link } from "react-router";
+import { Link, Navigate } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ import {
 	Rocket,
 } from "lucide-react";
 import PortfolioMiniPreview from "@/components/Landing/PortfolioMiniPreview";
+import { useSession } from "@/hooks/useSession";
 
 const pillars = [
 	{
@@ -41,6 +42,16 @@ const pillars = [
 ];
 
 export default function LandingPage() {
+	const sessionQuery = useSession();
+
+	if (sessionQuery.isPending) {
+		return null;
+	}
+
+	if (sessionQuery.data?.user) {
+		return <Navigate to="/dashboard" replace />;
+	}
+
 	return (
 		<main className="mx-auto w-full max-w-[88rem] space-y-14 pb-20 sm:space-y-20 sm:pb-28">
 			<section className="grid items-start gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-12">

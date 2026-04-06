@@ -20,6 +20,7 @@ const routes = createBrowserRouter([
 			{ path: "signup", Component: SignupPage },
 			{ path: "dashboard", Component: DashboardPage },
 			{ path: "dashboard/edit", Component: PortfolioEditorPage },
+			{ path: "dashboard/create", Component: PortfolioEditorPage },
 			{ path: "dashboard/resume", Component: ResumeBuilderPage },
 		],
 	},

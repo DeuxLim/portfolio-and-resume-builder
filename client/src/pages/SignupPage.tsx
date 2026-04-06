@@ -67,7 +67,7 @@ export default function SignupPage() {
 					</Badge>
 					<CardTitle className="text-2xl">Create your developer portfolio</CardTitle>
 					<CardDescription>
-						Your username becomes your public URL. You can edit and relaunch anytime.
+						Your username is your starting URL. You can change the public URL anytime.
 					</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-3 text-sm text-muted-foreground">

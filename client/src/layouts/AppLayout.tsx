@@ -1,6 +1,7 @@
 import { Outlet, Link, useLocation } from "react-router";
 import { useNavigate } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/axios.client";
 import { sessionQueryKey } from "@/hooks/useSession";
 import { buttonVariants } from "@/components/ui/button";
@@ -8,11 +9,15 @@ import { cn } from "@/lib/utils";
 import ThemeToggleButton from "@/components/ThemeToggleButton";
 import { useSession } from "@/hooks/useSession";
 
+type OpenMenu = "portfolio" | "resume" | null;
+
 export default function AppLayout() {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
+	const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
+	const navMenusRef = useRef<HTMLDivElement | null>(null);
 	const isAuthed = Boolean(sessionQuery.data?.user);
 	const username =
 		sessionQuery.data?.portfolioSlug ?? sessionQuery.data?.user?.username;
@@ -25,12 +30,37 @@ export default function AppLayout() {
 		},
 	});
 
-	const isActivePath = (path: string) => {
-		if (path === "/") {
-			return location.pathname === "/";
-		}
-		return location.pathname === path || location.pathname.startsWith(`${path}/`);
-	};
+	const navActiveClass =
+		"bg-emerald-500/12 text-emerald-700 ring-1 ring-emerald-500/35 dark:text-emerald-300";
+	const isDashboardActive = location.pathname === "/dashboard";
+	const isEditorActive =
+		location.pathname.startsWith("/dashboard/edit") ||
+		location.pathname.startsWith("/dashboard/create");
+	const isResumeBuilderActive = location.pathname.startsWith("/dashboard/resume");
+	const isHomeActive = location.pathname === "/";
+	const isSampleActive = location.pathname.startsWith("/sample");
+
+	useEffect(() => {
+		const onPointerDown = (event: PointerEvent) => {
+			if (!navMenusRef.current?.contains(event.target as Node)) {
+				setOpenMenu(null);
+			}
+		};
+
+		const onEscape = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				setOpenMenu(null);
+			}
+		};
+
+		document.addEventListener("pointerdown", onPointerDown);
+		document.addEventListener("keydown", onEscape);
+
+		return () => {
+			document.removeEventListener("pointerdown", onPointerDown);
+			document.removeEventListener("keydown", onEscape);
+		};
+	}, []);
 
 	return (
 		<div className="app-shell relative min-h-dvh overflow-hidden bg-[radial-gradient(circle_at_top_right,#0ea5e91f,transparent_40%),radial-gradient(circle_at_top_left,#22c55e14,transparent_35%)] bg-cover bg-center">
@@ -50,51 +80,129 @@ export default function AppLayout() {
 						</Link>
 						<div className="flex flex-wrap items-center gap-1.5">
 							{isAuthed ? (
-								<>
+								<div ref={navMenusRef} className="flex flex-wrap items-center gap-1.5">
 									<Link
 										to="/dashboard"
 										className={cn(
 											buttonVariants({ size: "sm", variant: "ghost" }),
-											isActivePath("/dashboard") && "bg-muted text-foreground",
+											isDashboardActive && navActiveClass,
 										)}
+										onClick={() => setOpenMenu(null)}
 									>
 										Dashboard
 									</Link>
-									<Link
-										to="/dashboard/edit"
-										className={cn(
-											buttonVariants({ size: "sm", variant: "ghost" }),
-											isActivePath("/dashboard/edit") && "bg-muted text-foreground",
-										)}
-									>
-										Edit portfolio
-									</Link>
-									<Link
-										to="/dashboard/resume"
-										className={cn(
-											buttonVariants({ size: "sm", variant: "ghost" }),
-											isActivePath("/dashboard/resume") && "bg-muted text-foreground",
-										)}
-									>
-										Resume builder
-									</Link>
-									<Link to="/dashboard/edit?newVersion=1" className={buttonVariants({ size: "sm" })}>
-										New version
-									</Link>
-									{publicPortfolioPath ? (
-										<Link
-											to={publicPortfolioPath}
-											target="_blank"
-											rel="noopener noreferrer"
+
+									<div className="group relative">
+										<button
+											type="button"
 											className={cn(
 												buttonVariants({ size: "sm", variant: "ghost" }),
-												location.pathname === publicPortfolioPath &&
-													"bg-muted text-foreground",
+												"cursor-pointer",
+												isEditorActive && navActiveClass,
+												openMenu === "portfolio" && "bg-accent text-accent-foreground",
 											)}
+											aria-expanded={openMenu === "portfolio"}
+											aria-haspopup="menu"
+											onClick={() =>
+												setOpenMenu((current) =>
+													current === "portfolio" ? null : "portfolio",
+												)
+											}
 										>
-											My portfolio
-										</Link>
-									) : null}
+											Portfolio builder
+										</button>
+										{openMenu === "portfolio" ? (
+											<div
+												className="absolute left-0 top-[calc(100%+0.35rem)] z-50 min-w-52 rounded-xl border border-border/80 bg-background p-1.5 shadow-xl"
+												role="menu"
+											>
+											<div className="flex flex-col gap-1">
+												<Link
+													to="/dashboard/edit"
+													className={cn(
+														buttonVariants({ size: "sm", variant: "ghost" }),
+														"justify-start",
+														isEditorActive && navActiveClass,
+													)}
+													role="menuitem"
+													onClick={() => setOpenMenu(null)}
+												>
+													Edit portfolio
+												</Link>
+												<Link
+													to="/dashboard?newVersion=1"
+													className={cn(
+														buttonVariants({ size: "sm", variant: "ghost" }),
+														"justify-start",
+													)}
+													role="menuitem"
+													onClick={() => setOpenMenu(null)}
+												>
+													New version
+												</Link>
+												{publicPortfolioPath ? (
+													<Link
+														to={publicPortfolioPath}
+														target="_blank"
+														rel="noopener noreferrer"
+														className={cn(
+															buttonVariants({ size: "sm", variant: "ghost" }),
+															"justify-start",
+															location.pathname === publicPortfolioPath &&
+																navActiveClass,
+														)}
+														role="menuitem"
+														onClick={() => setOpenMenu(null)}
+													>
+														My portfolio
+													</Link>
+												) : null}
+											</div>
+										</div>
+										) : null}
+									</div>
+
+									<div className="group relative">
+										<button
+											type="button"
+											className={cn(
+												buttonVariants({ size: "sm", variant: "ghost" }),
+												"cursor-pointer",
+												isResumeBuilderActive && navActiveClass,
+												openMenu === "resume" && "bg-accent text-accent-foreground",
+											)}
+											aria-expanded={openMenu === "resume"}
+											aria-haspopup="menu"
+											onClick={() =>
+												setOpenMenu((current) =>
+													current === "resume" ? null : "resume",
+												)
+											}
+										>
+											Resume builder
+										</button>
+										{openMenu === "resume" ? (
+											<div
+												className="absolute left-0 top-[calc(100%+0.35rem)] z-50 min-w-52 rounded-xl border border-border/80 bg-background p-1.5 shadow-xl"
+												role="menu"
+											>
+											<div className="flex flex-col gap-1">
+												<Link
+													to="/dashboard/resume"
+													className={cn(
+														buttonVariants({ size: "sm", variant: "ghost" }),
+														"justify-start",
+														isResumeBuilderActive && navActiveClass,
+													)}
+													role="menuitem"
+													onClick={() => setOpenMenu(null)}
+												>
+													Open resume builder
+												</Link>
+											</div>
+										</div>
+										) : null}
+									</div>
 									<button
 										type="button"
 										className={buttonVariants({ size: "sm", variant: "ghost" })}
@@ -103,14 +211,14 @@ export default function AppLayout() {
 									>
 										{logoutMutation.isPending ? "Logging out..." : "Log out"}
 									</button>
-								</>
+								</div>
 							) : (
 								<>
 									<Link
 										to="/"
 										className={cn(
 											buttonVariants({ size: "sm", variant: "ghost" }),
-											isActivePath("/") && "bg-muted text-foreground",
+											isHomeActive && navActiveClass,
 										)}
 									>
 										Home
@@ -119,7 +227,7 @@ export default function AppLayout() {
 										to="/sample"
 										className={cn(
 											buttonVariants({ size: "sm", variant: "ghost" }),
-											isActivePath("/sample") && "bg-muted text-foreground",
+											isSampleActive && navActiveClass,
 										)}
 									>
 										Sample output

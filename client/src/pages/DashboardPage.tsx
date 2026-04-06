@@ -1,12 +1,14 @@
 import { api } from "@/lib/axios.client";
-import { useSession } from "@/hooks/useSession";
+import type { AxiosError } from "axios";
+import { sessionQueryKey, useSession } from "@/hooks/useSession";
 import type {
 	EditablePortfolio,
+	PortfolioVersionBase,
 	PortfolioVersionSummary,
 } from "../../../shared/types/portfolio.types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -21,10 +23,38 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { Circle, Globe, Layers, Pencil, Plus, Trash2 } from "lucide-react";
 
+const versionBaseOptions: Array<{
+	value: PortfolioVersionBase;
+	label: string;
+	description: string;
+}> = [
+	{
+		value: "latest",
+		label: "Most recent",
+		description: "Start from the latest updated version snapshot.",
+	},
+	{
+		value: "live",
+		label: "Current live",
+		description: "Start from what visitors currently see.",
+	},
+	{
+		value: "blank",
+		label: "Clean slate",
+		description: "Start with empty content fields.",
+	},
+];
+
 export default function DashboardPage() {
 	const navigate = useNavigate();
+	const [searchParams, setSearchParams] = useSearchParams();
+	const hasCreateVersionQueryParam = searchParams.get("newVersion") === "1";
 	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
+	const [toast, setToast] = useState<{
+		type: "success" | "error";
+		message: string;
+	} | null>(null);
 	const [versionToDelete, setVersionToDelete] = useState<{
 		id: number;
 		name: string;
@@ -35,9 +65,23 @@ export default function DashboardPage() {
 		nextName: string;
 		error: string;
 	} | null>(null);
+	const [versionToCreate, setVersionToCreate] = useState<{
+		name: string;
+		base: PortfolioVersionBase;
+		error: string;
+	} | null>(() =>
+		hasCreateVersionQueryParam
+			? {
+					name: "",
+					base: "latest",
+					error: "",
+				}
+			: null,
+	);
 	const [copyStatus, setCopyStatus] = useState<"idle" | "success" | "error">(
 		"idle",
 	);
+	const [publicSlugInput, setPublicSlugInput] = useState("");
 
 	useEffect(() => {
 		if (sessionQuery.isSuccess && !sessionQuery.data?.user) {
@@ -52,6 +96,25 @@ export default function DashboardPage() {
 		}, 2000);
 		return () => window.clearTimeout(timeoutId);
 	}, [copyStatus]);
+
+	useEffect(() => {
+		if (!toast) return;
+		const timeoutId = setTimeout(() => setToast(null), 2400);
+		return () => clearTimeout(timeoutId);
+	}, [toast]);
+
+	useEffect(() => {
+		if (!hasCreateVersionQueryParam) return;
+		// eslint-disable-next-line react-hooks/set-state-in-effect
+		setVersionToCreate({
+			name: "",
+			base: "latest",
+			error: "",
+		});
+		const next = new URLSearchParams(searchParams);
+		next.delete("newVersion");
+		setSearchParams(next, { replace: true });
+	}, [hasCreateVersionQueryParam, searchParams, setSearchParams]);
 
 	const portfolioQuery = useQuery({
 		queryKey: ["my-portfolio"],
@@ -79,8 +142,12 @@ export default function DashboardPage() {
 		mutationFn: async (versionId: number) =>
 			api.put(`/portfolios/me/versions/${versionId}/activate`),
 		onSuccess: async () => {
+			setToast({ type: "success", message: "Version is now live." });
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio"] });
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
+		},
+		onError: () => {
+			setToast({ type: "error", message: "Failed to set live version." });
 		},
 	});
 
@@ -88,8 +155,12 @@ export default function DashboardPage() {
 		mutationFn: async (versionId: number) =>
 			api.delete(`/portfolios/me/versions/${versionId}`),
 		onSuccess: async () => {
+			setToast({ type: "success", message: "Version deleted." });
 			setVersionToDelete(null);
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
+		},
+		onError: () => {
+			setToast({ type: "error", message: "Failed to delete version." });
 		},
 	});
 
@@ -97,10 +168,12 @@ export default function DashboardPage() {
 		mutationFn: async (input: { id: number; name: string }) =>
 			api.put(`/portfolios/me/versions/${input.id}`, { name: input.name }),
 		onSuccess: async () => {
+			setToast({ type: "success", message: "Version name updated." });
 			setVersionToRename(null);
 			await queryClient.invalidateQueries({ queryKey: ["my-portfolio-versions"] });
 		},
 		onError: () => {
+			setToast({ type: "error", message: "Failed to rename version. Please try again." });
 			setVersionToRename((current) =>
 				current
 					? {
@@ -112,12 +185,65 @@ export default function DashboardPage() {
 		},
 	});
 
+	const createVersionMutation = useMutation({
+		mutationFn: async (input: { name: string; base: PortfolioVersionBase }) => input,
+		onSuccess: async (input) => {
+			setVersionToCreate(null);
+			navigate(
+				`/dashboard/create?draft=1&base=${encodeURIComponent(input.base)}&name=${encodeURIComponent(input.name)}`,
+			);
+		},
+		onError: (error) => {
+			const responseData = (error as AxiosError<{ message?: string }>).response
+				?.data;
+			const message =
+				responseData?.message ?? "Failed to create version. Please try again.";
+			setVersionToCreate((current) =>
+				current
+					? {
+							...current,
+							error: message,
+						}
+					: current,
+			);
+		},
+	});
+
+	const updatePublicSlugMutation = useMutation({
+		mutationFn: async (slug: string) => {
+			const { data } = await api.put<{ portfolio: EditablePortfolio }>(
+				"/portfolios/me/slug",
+				{ slug },
+			);
+			return data.portfolio;
+		},
+		onSuccess: async (portfolio) => {
+			setPublicSlugInput(portfolio.username);
+			setToast({ type: "success", message: "Public URL updated." });
+			await queryClient.invalidateQueries({ queryKey: ["my-portfolio"] });
+			await queryClient.invalidateQueries({ queryKey: sessionQueryKey });
+		},
+		onError: (error) => {
+			const responseData = (error as AxiosError<{ message?: string }>).response
+				?.data;
+			setToast({
+				type: "error",
+				message: responseData?.message ?? "Failed to update public URL.",
+			});
+		},
+	});
+
 	const publicLink = useMemo(() => {
 		const username =
 			portfolioQuery.data?.username ?? sessionQuery.data?.user?.username;
 		if (!username) return "";
 		return `${window.location.origin}/${username}`;
 	}, [portfolioQuery.data?.username, sessionQuery.data?.user?.username]);
+
+	useEffect(() => {
+		if (!portfolioQuery.data?.username) return;
+		setPublicSlugInput(portfolioQuery.data.username);
+	}, [portfolioQuery.data?.username]);
 
 	const activeVersion = versionsQuery.data?.find((version) => version.isActive);
 	const displayName =
@@ -148,8 +274,37 @@ export default function DashboardPage() {
 		renameVersionMutation.mutate({ id: versionToRename.id, name });
 	};
 
+	const handleCreateConfirm = () => {
+		if (!versionToCreate) return;
+		const name = versionToCreate.name.trim();
+		if (!name) {
+			setVersionToCreate((current) =>
+				current ? { ...current, error: "Version name is required." } : current,
+			);
+			return;
+		}
+		createVersionMutation.mutate({
+			name,
+			base: versionToCreate.base,
+		});
+	};
+
 	return (
 		<main className="space-y-5">
+			{toast ? (
+				<div className="fixed right-4 top-4 z-50">
+					<div
+						className={
+							toast.type === "error"
+								? "rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700 shadow-lg"
+								: "rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700 shadow-lg"
+						}
+					>
+						{toast.message}
+					</div>
+				</div>
+			) : null}
+
 			<section className="grid grid-cols-1 gap-4 lg:grid-cols-[1.2fr_.8fr]">
 				<Card className="border-border/70 shadow-none">
 					<CardHeader>
@@ -162,9 +317,9 @@ export default function DashboardPage() {
 									</span>
 								) : null}
 							</CardTitle>
-							{activeVersion && (
+							{activeVersion ? (
 								<Badge variant="secondary">Active: {activeVersion.name}</Badge>
-							)}
+							) : null}
 						</div>
 						<CardDescription>
 							This link is what recruiters and clients see right now.
@@ -177,6 +332,44 @@ export default function DashboardPage() {
 							</div>
 							<div className="mt-1 break-all font-medium">
 								{publicLink || "No public link"}
+							</div>
+						</div>
+						<div className="rounded-lg border bg-background/70 px-3 py-3">
+							<div className="space-y-2">
+								<div className="text-xs uppercase tracking-[0.16em] text-muted-foreground">
+									Public URL slug
+								</div>
+								<div className="flex flex-wrap items-center gap-2">
+									<div className="shrink-0 text-xs text-muted-foreground">
+										{window.location.origin}/
+									</div>
+									<Input
+										value={publicSlugInput}
+										onChange={(event) => setPublicSlugInput(event.target.value)}
+										placeholder="your-public-url"
+										className="max-w-xs"
+									/>
+									<Button
+										type="button"
+										size="sm"
+										onClick={() =>
+											updatePublicSlugMutation.mutate(publicSlugInput)
+										}
+										disabled={
+											updatePublicSlugMutation.isPending ||
+											!publicSlugInput.trim() ||
+											publicSlugInput.trim() ===
+												(portfolioQuery.data?.username ?? "")
+										}
+									>
+										{updatePublicSlugMutation.isPending
+											? "Saving..."
+											: "Save URL"}
+									</Button>
+								</div>
+								<div className="text-xs text-muted-foreground">
+									Allowed: lowercase letters, numbers, and hyphens.
+								</div>
 							</div>
 						</div>
 						<div className="flex flex-wrap gap-2">
@@ -245,7 +438,7 @@ export default function DashboardPage() {
 						<div>
 							<CardTitle className="text-lg">Version timeline</CardTitle>
 							<CardDescription>
-								Promote any version to live without changing your URL.
+								Create, rename, edit, and promote versions without changing your URL.
 							</CardDescription>
 						</div>
 						<div className="flex items-center gap-2">
@@ -256,7 +449,13 @@ export default function DashboardPage() {
 							<Button
 								type="button"
 								size="sm"
-								onClick={() => navigate("/dashboard/edit?newVersion=1")}
+								onClick={() =>
+									setVersionToCreate({
+										name: "",
+										base: "latest",
+										error: "",
+									})
+								}
 							>
 								<Plus className="size-4" />
 								New version
@@ -341,7 +540,7 @@ export default function DashboardPage() {
 									</Button>
 								) : null}
 								<Link
-									to="/dashboard/edit"
+									to={`/dashboard/edit?versionId=${version.id}`}
 									className={buttonVariants({ variant: "outline", size: "sm" })}
 								>
 									Edit
@@ -427,6 +626,81 @@ export default function DashboardPage() {
 									disabled={renameVersionMutation.isPending}
 								>
 									{renameVersionMutation.isPending ? "Saving..." : "Save name"}
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+			) : null}
+
+			{versionToCreate ? (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+					<Card className="w-full max-w-lg border-border/70 shadow-xl">
+						<CardHeader>
+							<CardTitle className="text-lg">Create new version</CardTitle>
+							<CardDescription>
+								Choose the base source, then set the version name.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-4">
+							<div className="space-y-2">
+								<div className="text-sm font-medium">Version name</div>
+								<Input
+									value={versionToCreate.name}
+									onChange={(event) =>
+										setVersionToCreate((current) =>
+											current
+												? { ...current, name: event.target.value, error: "" }
+												: current,
+										)
+									}
+									maxLength={120}
+									placeholder="e.g. Spring Campaign Draft"
+								/>
+							</div>
+							<div className="space-y-2">
+								<div className="text-sm font-medium">Base this version on</div>
+								<div className="space-y-2">
+									{versionBaseOptions.map((option) => (
+										<button
+											key={option.value}
+											type="button"
+											className={cn(
+												"w-full rounded-lg border px-3 py-2 text-left transition-colors",
+												versionToCreate.base === option.value
+													? "border-emerald-500/50 bg-emerald-500/10"
+													: "border-border hover:bg-muted/40",
+											)}
+											onClick={() =>
+												setVersionToCreate((current) =>
+													current ? { ...current, base: option.value } : current,
+												)
+											}
+										>
+											<div className="text-sm font-medium">{option.label}</div>
+											<div className="text-xs text-muted-foreground">{option.description}</div>
+										</button>
+									))}
+								</div>
+							</div>
+							{versionToCreate.error ? (
+								<div className="text-sm text-destructive">{versionToCreate.error}</div>
+							) : null}
+							<div className="flex justify-end gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setVersionToCreate(null)}
+									disabled={createVersionMutation.isPending}
+								>
+									Cancel
+								</Button>
+								<Button
+									type="button"
+									onClick={handleCreateConfirm}
+									disabled={createVersionMutation.isPending}
+								>
+									{createVersionMutation.isPending ? "Creating..." : "Create version"}
 								</Button>
 							</div>
 						</CardContent>

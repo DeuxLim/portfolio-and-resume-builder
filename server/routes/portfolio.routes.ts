@@ -7,6 +7,11 @@ const PortfolioRouter = Router();
 
 PortfolioRouter.get("/me", requireAuth, PortfolioController.getMyPortfolio);
 PortfolioRouter.put("/me", requireAuth, PortfolioController.updateMyPortfolio);
+PortfolioRouter.put(
+	"/me/slug",
+	requireAuth,
+	PortfolioController.updateMyPublicSlug,
+);
 PortfolioRouter.post(
 	"/me/avatar",
 	requireAuth,
@@ -24,6 +29,16 @@ PortfolioRouter.get(
 	requireAuth,
 	PortfolioController.listMyPortfolioVersions,
 );
+PortfolioRouter.get(
+	"/me/versions/preview",
+	requireAuth,
+	PortfolioController.getMyPortfolioVersionPreview,
+);
+PortfolioRouter.get(
+	"/me/versions/:versionId",
+	requireAuth,
+	PortfolioController.getMyPortfolioVersion,
+);
 PortfolioRouter.post(
 	"/me/versions",
 	requireAuth,
@@ -33,6 +48,16 @@ PortfolioRouter.put(
 	"/me/versions/:versionId/activate",
 	requireAuth,
 	PortfolioController.activateMyPortfolioVersion,
+);
+PortfolioRouter.put(
+	"/me/versions/:versionId",
+	requireAuth,
+	PortfolioController.renameMyPortfolioVersion,
+);
+PortfolioRouter.put(
+	"/me/versions/:versionId/snapshot",
+	requireAuth,
+	PortfolioController.updateMyPortfolioVersionSnapshot,
 );
 PortfolioRouter.delete(
 	"/me/versions/:versionId",
