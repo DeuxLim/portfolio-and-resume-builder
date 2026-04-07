@@ -50,6 +50,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import {
+	Select,
+	SelectContent,
+	SelectGroup,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import {
 	ChevronDown,
 	ChevronUp,
 	Eye,
@@ -85,6 +99,7 @@ import Projects from "@/components/Home/Projects";
 import Heatmap from "@/components/Home/Heatmap";
 import PortfolioView from "@/components/portfolio/PortfolioView";
 import MarkdownContent from "@/components/shared/MarkdownContent";
+import { toast } from "sonner";
 
 const SECTION_META: Record<
 	PortfolioSectionKey,
@@ -174,10 +189,13 @@ export default function PortfolioEditorPage() {
 	const draftName = String(searchParams.get("name") ?? "").trim();
 	const openedFromDashboardPreview = searchParams.get("preview") === "1";
 	const [portfolio, setPortfolio] = useState<EditablePortfolio | null>(null);
-	const [toast, setToast] = useState<{
-		type: "success" | "error";
-		message: string;
-	} | null>(null);
+	const setToast = ({ type, message }: { type: "success" | "error"; message: string }) => {
+		if (type === "error") {
+			toast.error(message);
+			return;
+		}
+		toast.success(message);
+	};
 	const [quickTechInput, setQuickTechInput] = useState<Record<string, string>>({});
 	const [draggingSection, setDraggingSection] = useState<PortfolioSectionKey | null>(null);
 	const [openPanels, setOpenPanels] = useState<Record<string, boolean>>({});
@@ -280,12 +298,6 @@ export default function PortfolioEditorPage() {
 			navigate("/login");
 		}
 	}, [navigate, sessionQuery.data, sessionQuery.isSuccess]);
-
-	useEffect(() => {
-		if (!toast) return;
-		const timeoutId = window.setTimeout(() => setToast(null), 2400);
-		return () => window.clearTimeout(timeoutId);
-	}, [toast]);
 
 	useEffect(() => {
 		if (!versionDetailQuery.data?.version?.name) return;
@@ -815,22 +827,25 @@ export default function PortfolioEditorPage() {
 							key={action.id}
 							className="grid grid-cols-[140px_minmax(260px,1fr)_170px_170px_100px] items-center gap-2 border-b px-3 py-2 last:border-b-0"
 						>
-							<select
-								className="border-input bg-background ring-offset-background h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+							<Select
 								value={action.type}
-								onChange={(event) =>
-									setHeaderActionType(
-										action.id,
-										event.target.value as HeaderActionType,
-									)
+								onValueChange={(value) =>
+									setHeaderActionType(action.id, value as HeaderActionType)
 								}
 							>
-								<option value="github">Github</option>
-								<option value="linkedin">LinkedIn</option>
-								<option value="email">Email</option>
-								<option value="phone">Phone</option>
-								<option value="link">Custom link</option>
-							</select>
+								<SelectTrigger className="h-9 w-full">
+									<SelectValue placeholder="Type" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectGroup>
+										<SelectItem value="github">Github</SelectItem>
+										<SelectItem value="linkedin">LinkedIn</SelectItem>
+										<SelectItem value="email">Email</SelectItem>
+										<SelectItem value="phone">Phone</SelectItem>
+										<SelectItem value="link">Custom link</SelectItem>
+									</SelectGroup>
+								</SelectContent>
+							</Select>
 							<Input
 								value={action.value}
 								onChange={(event) =>
@@ -848,20 +863,22 @@ export default function PortfolioEditorPage() {
 											: "https://..."
 								}
 							/>
-							<select
-								className="border-input bg-background ring-offset-background h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+							<Select
 								value={action.display === "value" ? "value" : "label"}
-								onChange={(event) =>
-									setHeaderActionField(
-										action.id,
-										"display",
-										event.target.value,
-									)
+								onValueChange={(value) =>
+									setHeaderActionField(action.id, "display", value)
 								}
 							>
-								<option value="label">Use label</option>
-								<option value="value">Use actual value</option>
-							</select>
+								<SelectTrigger className="h-9 w-full">
+									<SelectValue placeholder="Display mode" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectGroup>
+										<SelectItem value="label">Use label</SelectItem>
+										<SelectItem value="value">Use actual value</SelectItem>
+									</SelectGroup>
+								</SelectContent>
+							</Select>
 							<Input
 								value={action.label}
 								onChange={(event) =>
@@ -1754,10 +1771,9 @@ export default function PortfolioEditorPage() {
 								/>
 								<div className="space-y-2">
 									<Label>Type</Label>
-									<select
-										className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+									<Select
 										value={item.type}
-										onChange={(event) =>
+										onValueChange={(value) =>
 											setPortfolio((current) =>
 												current
 													? {
@@ -1766,15 +1782,15 @@ export default function PortfolioEditorPage() {
 																entry.id === item.id
 																	? {
 																			...entry,
-																			type: event.target.value as CustomSection["type"],
+																			type: value as CustomSection["type"],
 																			items:
-																				event.target.value === "bullets"
+																				value === "bullets"
 																					? entry.items?.length
 																						? entry.items
 																						: [""]
 																					: [],
 																			links:
-																				event.target.value === "links"
+																				value === "links"
 																					? entry.links?.length
 																						? entry.links
 																						: [{ id: `${Date.now()}-link`, label: "", url: "" }]
@@ -1787,10 +1803,17 @@ export default function PortfolioEditorPage() {
 											)
 										}
 									>
-										<option value="text">Text</option>
-										<option value="bullets">Bullet List</option>
-										<option value="links">Links</option>
-									</select>
+										<SelectTrigger className="h-9 w-full">
+											<SelectValue placeholder="Select content type" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectGroup>
+												<SelectItem value="text">Text</SelectItem>
+												<SelectItem value="bullets">Bullet List</SelectItem>
+												<SelectItem value="links">Links</SelectItem>
+											</SelectGroup>
+										</SelectContent>
+									</Select>
 								</div>
 								{item.type === "bullets" ? (
 									<div className="space-y-2">
@@ -2044,19 +2067,6 @@ export default function PortfolioEditorPage() {
 
 	return (
 		<main className="space-y-5 pb-10">
-			{toast ? (
-				<div className="fixed right-4 top-4 z-50">
-					<div
-						className={
-							toast.type === "error"
-								? "rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700 shadow-lg"
-								: "rounded-md border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700 shadow-lg"
-						}
-					>
-						{toast.message}
-					</div>
-				</div>
-			) : null}
 			<Card className="bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-transparent shadow-none">
 				<CardHeader className="gap-3">
 					<div className="space-y-2">
@@ -2295,7 +2305,7 @@ export default function PortfolioEditorPage() {
 										)}
 									</div>
 								</div>
-								<input
+								<Input
 									ref={avatarInputRef}
 									type="file"
 									accept="image/jpeg,image/png,image/webp,image/gif"
@@ -2387,7 +2397,7 @@ export default function PortfolioEditorPage() {
 										</div>
 									)}
 								</div>
-								<input
+								<Input
 									ref={coverInputRef}
 									type="file"
 									accept="image/jpeg,image/png,image/webp,image/gif"
@@ -3080,20 +3090,31 @@ export default function PortfolioEditorPage() {
 												<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 													Preset category
 												</Label>
-													<select
-														className="border-input bg-background ring-offset-background h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
-														value={getCategoryPresetKey(item.id, item.name)}
-														onChange={(event) =>
-															applyPresetToCategory(item.id, event.target.value)
-														}
+												<Select
+													value={
+														getCategoryPresetKey(item.id, item.name) || "__custom_manual__"
+													}
+													onValueChange={(value) =>
+														applyPresetToCategory(
+															item.id,
+															value === "__custom_manual__" ? "" : value,
+														)
+													}
 												>
-													<option value="">Custom (manual)</option>
-													{techCategoryPresets.map((preset) => (
-														<option key={`preset-${preset.key}`} value={preset.key}>
-															{preset.label}
-														</option>
-													))}
-												</select>
+													<SelectTrigger className="h-9 w-full">
+														<SelectValue placeholder="Custom (manual)" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectGroup>
+															<SelectItem value="__custom_manual__">Custom (manual)</SelectItem>
+															{techCategoryPresets.map((preset) => (
+																<SelectItem key={`preset-${preset.key}`} value={preset.key}>
+																	{preset.label}
+																</SelectItem>
+															))}
+														</SelectGroup>
+													</SelectContent>
+												</Select>
 											</div>
 											<div className="space-y-1">
 												<Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -3812,7 +3833,20 @@ export default function PortfolioEditorPage() {
 				</Tabs>
 
 				{createModal ? (
-					<div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+					<Dialog
+						open
+						onOpenChange={(open) => {
+							if (!open) {
+								setCreateModal(null);
+								setCreateForm({});
+							}
+						}}
+					>
+						<DialogContent className="max-w-lg p-0" showCloseButton={false}>
+							<DialogTitle className="sr-only">{createModal.title}</DialogTitle>
+							<DialogDescription className="sr-only">
+								{createModal.description}
+							</DialogDescription>
 						<Card className="flex max-h-[85vh] w-full max-w-lg flex-col border-border/70 shadow-xl">
 							<CardHeader>
 								<CardTitle className="text-lg">{createModal.title}</CardTitle>
@@ -3823,20 +3857,26 @@ export default function PortfolioEditorPage() {
 									<>
 										<div className="space-y-1">
 											<Label>Type</Label>
-											<select
-												className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+											<Select
 												value={createForm.type ?? "github"}
-												onChange={(event) => {
-													const nextType = event.target.value as HeaderActionType;
+												onValueChange={(value) => {
+													const nextType = value as HeaderActionType;
 													setCreateForm(getHeaderActionCreateDefaults(nextType));
 												}}
 											>
-												<option value="github">Github</option>
-												<option value="linkedin">LinkedIn</option>
-												<option value="email">Email</option>
-												<option value="phone">Phone</option>
-												<option value="link">Custom link</option>
-											</select>
+												<SelectTrigger className="h-9 w-full">
+													<SelectValue placeholder="Select type" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectGroup>
+														<SelectItem value="github">Github</SelectItem>
+														<SelectItem value="linkedin">LinkedIn</SelectItem>
+														<SelectItem value="email">Email</SelectItem>
+														<SelectItem value="phone">Phone</SelectItem>
+														<SelectItem value="link">Custom link</SelectItem>
+													</SelectGroup>
+												</SelectContent>
+											</Select>
 										</div>
 										<div className="space-y-1">
 											<Label>Value</Label>
@@ -3859,19 +3899,25 @@ export default function PortfolioEditorPage() {
 										</div>
 										<div className="space-y-1">
 											<Label>Display</Label>
-											<select
-												className="h-9 w-full rounded-lg border border-input bg-transparent px-2 text-sm"
+											<Select
 												value={createForm.display ?? "label"}
-												onChange={(event) =>
+												onValueChange={(value) =>
 													setCreateForm((current) => ({
 														...current,
-														display: event.target.value,
+														display: value,
 													}))
 												}
 											>
-												<option value="label">Use label</option>
-												<option value="value">Use actual value</option>
-											</select>
+												<SelectTrigger className="h-9 w-full">
+													<SelectValue placeholder="Select display option" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectGroup>
+														<SelectItem value="label">Use label</SelectItem>
+														<SelectItem value="value">Use actual value</SelectItem>
+													</SelectGroup>
+												</SelectContent>
+											</Select>
 										</div>
 										<div className="space-y-1">
 											<Label>Label</Label>
@@ -4012,12 +4058,11 @@ export default function PortfolioEditorPage() {
 									<>
 										<div className="space-y-1">
 											<Label>Category mode</Label>
-											<select
-												className="border-input bg-background ring-offset-background h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+											<Select
 												value={createForm.categoryMode ?? "preset"}
-												onChange={(event) =>
+												onValueChange={(value) =>
 													setCreateForm((current) => {
-														const nextMode = event.target.value;
+														const nextMode = value;
 														if (nextMode !== "preset") {
 															return {
 																...current,
@@ -4043,19 +4088,25 @@ export default function PortfolioEditorPage() {
 													})
 												}
 											>
-												<option value="preset">Use preset category</option>
-												<option value="custom">Custom category (manual)</option>
-											</select>
+												<SelectTrigger className="h-9 w-full">
+													<SelectValue placeholder="Select category mode" />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectGroup>
+														<SelectItem value="preset">Use preset category</SelectItem>
+														<SelectItem value="custom">Custom category (manual)</SelectItem>
+													</SelectGroup>
+												</SelectContent>
+											</Select>
 										</div>
 										{(createForm.categoryMode ?? "preset") === "preset" ? (
 											<div className="space-y-1">
 												<Label>Preset category</Label>
-												<select
-													className="border-input bg-background ring-offset-background h-9 w-full rounded-md border px-3 py-1 text-sm shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px]"
+												<Select
 													value={createForm.presetKey ?? "frontend"}
-													onChange={(event) =>
+													onValueChange={(value) =>
 														setCreateForm((current) => {
-															const presetKey = event.target.value as TechCategoryPresetKey;
+															const presetKey = value as TechCategoryPresetKey;
 															const preset = getTechCategoryPresetByKey(presetKey);
 															return {
 																...current,
@@ -4065,12 +4116,19 @@ export default function PortfolioEditorPage() {
 														})
 													}
 												>
-													{techCategoryPresets.map((preset) => (
-														<option key={`create-preset-${preset.key}`} value={preset.key}>
-															{preset.label}
-														</option>
-													))}
-												</select>
+													<SelectTrigger className="h-9 w-full">
+														<SelectValue placeholder="Select preset category" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectGroup>
+															{techCategoryPresets.map((preset) => (
+																<SelectItem key={`create-preset-${preset.key}`} value={preset.key}>
+																	{preset.label}
+																</SelectItem>
+															))}
+														</SelectGroup>
+													</SelectContent>
+												</Select>
 											</div>
 										) : null}
 										<div className="space-y-1">
@@ -4456,11 +4514,17 @@ export default function PortfolioEditorPage() {
 								</div>
 							</CardContent>
 						</Card>
-					</div>
+						</DialogContent>
+					</Dialog>
 				) : null}
 
 				{previewOpen && (
-					<div className="fixed inset-0 z-50 bg-black/60 p-2 sm:p-6">
+					<Dialog open onOpenChange={(open) => !open && closePreview()}>
+						<DialogContent className="max-w-6xl p-0" showCloseButton={false}>
+							<DialogTitle className="sr-only">Quick preview</DialogTitle>
+							<DialogDescription className="sr-only">
+								Portfolio quick preview dialog
+							</DialogDescription>
 						<div className="mx-auto flex h-full w-full max-w-6xl flex-col overflow-hidden rounded-lg border border-border bg-background shadow-2xl sm:rounded-xl">
 							<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
 								<div>
@@ -4484,11 +4548,17 @@ export default function PortfolioEditorPage() {
 								</div>
 							</div>
 						</div>
-					</div>
+						</DialogContent>
+					</Dialog>
 				)}
 
 				{shortcutsOpen ? (
-					<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+					<Dialog open onOpenChange={(open) => !open && setShortcutsOpen(false)}>
+						<DialogContent className="max-w-md p-0" showCloseButton={false}>
+							<DialogTitle className="sr-only">Keyboard shortcuts</DialogTitle>
+							<DialogDescription className="sr-only">
+								Portfolio builder shortcuts
+							</DialogDescription>
 						<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
 							<CardHeader>
 								<CardTitle className="text-lg">Keyboard shortcuts</CardTitle>
@@ -4520,11 +4590,17 @@ export default function PortfolioEditorPage() {
 								</div>
 							</CardContent>
 						</Card>
-					</div>
+						</DialogContent>
+					</Dialog>
 				) : null}
 
 				{renameDialogOpen && canManageSelectedDraftVersion ? (
-					<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+					<Dialog open onOpenChange={(open) => !open && setRenameDialogOpen(false)}>
+						<DialogContent className="max-w-md p-0" showCloseButton={false}>
+							<DialogTitle className="sr-only">Rename version</DialogTitle>
+							<DialogDescription className="sr-only">
+								Rename version dialog
+							</DialogDescription>
 						<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
 							<CardHeader>
 								<CardTitle className="text-lg">Rename version</CardTitle>
@@ -4568,11 +4644,17 @@ export default function PortfolioEditorPage() {
 								</div>
 							</CardContent>
 						</Card>
-					</div>
+						</DialogContent>
+					</Dialog>
 				) : null}
 
 				{deleteDialogOpen && canManageSelectedDraftVersion ? (
-					<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+					<Dialog open onOpenChange={(open) => !open && setDeleteDialogOpen(false)}>
+						<DialogContent className="max-w-md p-0" showCloseButton={false}>
+							<DialogTitle className="sr-only">Delete version</DialogTitle>
+							<DialogDescription className="sr-only">
+								Delete version confirmation
+							</DialogDescription>
 						<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
 							<CardHeader>
 								<CardTitle className="text-lg">Delete version?</CardTitle>
@@ -4601,11 +4683,20 @@ export default function PortfolioEditorPage() {
 								</div>
 							</CardContent>
 						</Card>
-					</div>
+						</DialogContent>
+					</Dialog>
 				) : null}
 
 				{isHeaderActionsEditorOpen && (
-					<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/35 p-3 sm:items-center sm:p-6">
+					<Dialog
+						open
+						onOpenChange={(open) => !open && setIsHeaderActionsEditorOpen(false)}
+					>
+						<DialogContent className="max-w-6xl p-0" showCloseButton={false}>
+							<DialogTitle className="sr-only">Header Actions</DialogTitle>
+							<DialogDescription className="sr-only">
+								Configure header actions.
+							</DialogDescription>
 						<div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-foreground/10">
 							<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
 								<div>
@@ -4657,11 +4748,20 @@ export default function PortfolioEditorPage() {
 								</Button>
 							</div>
 						</div>
-					</div>
+						</DialogContent>
+					</Dialog>
 				)}
 
 				{isCustomSectionEditorOpen && (
-					<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/35 p-3 sm:items-center sm:p-6">
+					<Dialog
+						open
+						onOpenChange={(open) => !open && setIsCustomSectionEditorOpen(false)}
+					>
+						<DialogContent className="max-w-4xl p-0" showCloseButton={false}>
+							<DialogTitle className="sr-only">Custom Section Editor</DialogTitle>
+							<DialogDescription className="sr-only">
+								Create and edit custom sections.
+							</DialogDescription>
 					<div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-foreground/10">
 						<div className="flex items-center justify-between border-b px-4 py-3 sm:px-5">
 							<div>
@@ -4693,7 +4793,8 @@ export default function PortfolioEditorPage() {
 							</Button>
 						</div>
 					</div>
-				</div>
+						</DialogContent>
+					</Dialog>
 			)}
 		</main>
 	);
