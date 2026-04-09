@@ -1394,30 +1394,9 @@ export default function PortfolioEditorPage() {
 		getVisibleSectionOrder(source);
 
 	const getSectionMaxHeight = (
-		source: EditablePortfolio,
-		sectionKey: PortfolioSectionKey,
-	): number => {
-		switch (sectionKey) {
-			case "about":
-			case "timeline":
-				return 12;
-			case "experience":
-				return 16;
-			case "tech":
-				return 14;
-			case "projects": {
-				const projectCount = source.projects.length;
-				const projectedRows = 4 + Math.ceil(projectCount / 2) * 2;
-				return Math.min(14, Math.max(6, projectedRows));
-			}
-			case "heatmap":
-				return source.githubUsername?.trim() ? 10 : 6;
-			case "custom":
-				return 16;
-			default:
-				return GRID_MAX_HEIGHT;
-		}
-	};
+		_source: EditablePortfolio,
+		_sectionKey: PortfolioSectionKey,
+	): number => GRID_MAX_HEIGHT;
 
 	const getSectionMinHeight = (
 		source: EditablePortfolio,
@@ -3908,7 +3887,7 @@ export default function PortfolioEditorPage() {
 												ref={(node) => {
 													sectionContentRefs.current[sectionKey] = node;
 												}}
-												className="layout-drag-surface layout-scroll-content app-card h-full min-w-0 max-w-full cursor-move overflow-auto p-2.5 sm:p-4 [overflow-wrap:anywhere]"
+												className="layout-drag-surface layout-scroll-content app-card h-full min-w-0 max-w-full cursor-move overflow-y-auto overflow-x-hidden p-2.5 sm:p-4 [overflow-wrap:anywhere]"
 											>
 												<div
 													ref={(node) => {
@@ -4774,7 +4753,7 @@ export default function PortfolioEditorPage() {
 								</Button>
 							</div>
 							<div className="h-full overflow-auto p-3 sm:p-4">
-								<div className="mx-auto max-w-4xl px-2 pt-3 sm:px-4 sm:pt-6 md:pt-8">
+								<div className="mx-auto max-w-4xl px-3 pt-5 sm:px-4 sm:pt-6 md:pt-8">
 									<PortfolioView portfolio={portfolio} />
 								</div>
 							</div>

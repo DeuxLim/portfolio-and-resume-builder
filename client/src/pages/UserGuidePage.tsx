@@ -15,13 +15,13 @@ const onboardingSteps = [
 
 export default function UserGuidePage() {
 	return (
-		<main className="builder-v2 space-y-6 pb-20">
-			<section className="v2-panel p-6 sm:p-8">
+		<main className="builder-v2 space-y-4 pb-5 sm:space-y-5 sm:pb-6">
+			<section className="v2-panel p-5 sm:p-7">
 				<Badge variant="outline" className="mb-3 w-fit">
 					<BookOpen className="size-3.5" />
 					User Guide
 				</Badge>
-				<h1 className="text-4xl leading-[0.95] sm:text-5xl">
+				<h1 className="text-3xl leading-[0.97] sm:text-4xl">
 					Run the full portfolio + resume workflow with confidence.
 				</h1>
 				<p className="mt-3 max-w-3xl text-sm text-muted-foreground sm:text-base">
@@ -38,7 +38,7 @@ export default function UserGuidePage() {
 				</div>
 			</section>
 
-			<section className="grid gap-4 lg:grid-cols-3">
+			<section className="grid gap-3 lg:grid-cols-3">
 				{[
 					{
 						title: "Dashboard",
@@ -56,7 +56,7 @@ export default function UserGuidePage() {
 						icon: CheckCircle2,
 					},
 				].map((item) => (
-					<div key={item.title} className="v2-panel p-5 sm:p-6">
+					<div key={item.title} className="v2-panel p-4 sm:p-5">
 						<div className="mb-3 inline-flex size-9 items-center justify-center rounded-full bg-primary/12 text-primary">
 							<item.icon className="size-4" />
 						</div>
@@ -66,7 +66,7 @@ export default function UserGuidePage() {
 				))}
 			</section>
 
-			<section className="v2-panel p-6 sm:p-8">
+			<section className="v2-panel p-5 sm:p-7">
 				<div className="flex items-center gap-2">
 					<Rocket className="size-4 text-primary" />
 					<p className="text-xs font-semibold tracking-[0.16em] text-muted-foreground">

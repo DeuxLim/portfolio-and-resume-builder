@@ -49,8 +49,8 @@ export default function LandingPage() {
 	}
 
 	return (
-		<main className="space-y-16 pb-16 sm:space-y-24 sm:pb-24">
-			<section className="relative -mx-3 overflow-hidden rounded-[2rem] border border-border/70 bg-background/85 px-4 py-8 sm:mx-0 sm:px-8 sm:py-12 lg:px-12 lg:py-14">
+		<main className="space-y-4 pb-5 sm:space-y-5 sm:pb-6">
+			<section className="relative overflow-hidden rounded-[2rem] border border-border/70 bg-background/85 px-4 py-7 sm:px-8 sm:py-10 lg:px-12 lg:py-12">
 				<div className="pointer-events-none absolute -top-12 left-10 h-44 w-44 rounded-full bg-indigo-400/20 blur-3xl" />
 				<div className="pointer-events-none absolute top-12 right-8 h-52 w-52 rounded-full bg-sky-400/18 blur-3xl" />
 				<div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
@@ -58,13 +58,13 @@ export default function LandingPage() {
 						initial={{ opacity: 0, y: 16 }}
 						animate={{ opacity: 1, y: 0 }}
 						transition={{ duration: 0.5, ease: "easeOut" }}
-						className="space-y-7"
+						className="space-y-6"
 					>
 						<div className="space-y-4">
 							<p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">
 								PROFILE BUILDER
 							</p>
-							<h1 className="max-w-2xl text-5xl leading-[0.94] sm:text-6xl lg:text-7xl">
+							<h1 className="max-w-2xl text-4xl leading-[0.96] sm:text-5xl lg:text-6xl">
 								Build your career site like a premium product release.
 							</h1>
 							<p className="max-w-xl text-base text-muted-foreground sm:text-lg">
@@ -131,7 +131,7 @@ export default function LandingPage() {
 			</section>
 
 			<section className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-				<div className="v2-panel p-6 sm:p-8">
+				<div className="v2-panel p-5 sm:p-7">
 					<div className="mb-5 flex items-center gap-2">
 						<MousePointerClick className="size-4 text-primary" />
 						<p className="text-xs font-semibold tracking-[0.17em] text-muted-foreground">
@@ -146,7 +146,7 @@ export default function LandingPage() {
 										{index + 1}
 									</div>
 									<div>
-										<h2 className="text-2xl leading-tight sm:text-3xl">{step.title}</h2>
+										<h2 className="text-xl leading-tight sm:text-2xl">{step.title}</h2>
 										<p className="mt-2 text-sm text-muted-foreground sm:text-base">
 											{step.description}
 										</p>
@@ -158,12 +158,12 @@ export default function LandingPage() {
 					</div>
 				</div>
 
-				<div className="v2-panel flex flex-col justify-between p-6 sm:p-8">
+				<div className="v2-panel flex flex-col justify-between p-5 sm:p-7">
 					<div className="space-y-4">
 						<p className="text-xs font-semibold tracking-[0.17em] text-muted-foreground">
 							WHY IT FEELS DIFFERENT
 						</p>
-						<h2 className="text-3xl leading-tight sm:text-4xl">
+						<h2 className="text-2xl leading-tight sm:text-3xl">
 							Designed as a creative workspace, not a generic admin form.
 						</h2>
 						<ul className="space-y-3">
@@ -194,7 +194,7 @@ export default function LandingPage() {
 				</div>
 			</section>
 
-			<section className="v2-panel p-6 sm:p-8">
+			<section className="v2-panel p-5 sm:p-7">
 				<div className="mb-5 flex items-center gap-2">
 					<FileText className="size-4 text-primary" />
 					<p className="text-xs font-semibold tracking-[0.17em] text-muted-foreground">
@@ -202,7 +202,7 @@ export default function LandingPage() {
 					</p>
 				</div>
 				<div className="space-y-3">
-					<h2 className="text-3xl leading-tight sm:text-4xl">ATS-ready resume preview</h2>
+					<h2 className="text-2xl leading-tight sm:text-3xl">ATS-ready resume preview</h2>
 					<p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
 						Resume export is a first-class feature in Profile Builder. The sample below
 						shows the generated PDF output.
@@ -217,13 +217,13 @@ export default function LandingPage() {
 				</div>
 			</section>
 
-			<section className="v2-panel p-7 sm:p-10">
+			<section className="v2-panel p-6 sm:p-8">
 				<div className="grid gap-8 lg:grid-cols-[1fr_1fr_auto] lg:items-center">
 					<div>
 						<p className="text-xs font-semibold tracking-[0.17em] text-muted-foreground">
 							LAUNCH READY
 						</p>
-						<h2 className="mt-3 text-4xl leading-[0.95] sm:text-5xl">
+						<h2 className="mt-3 text-3xl leading-[0.97] sm:text-4xl">
 							Publish faster without sacrificing polish.
 						</h2>
 					</div>

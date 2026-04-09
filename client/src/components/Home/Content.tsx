@@ -155,7 +155,7 @@ export default function Content({
 							? undefined
 							: { duration: 0.45, ease: [0.16, 1, 0.3, 1] }
 					}
-					className="col-span-4 layout-scroll-content app-card overflow-auto p-2.5 sm:p-4"
+					className="col-span-4 layout-scroll-content app-card overflow-y-auto overflow-x-hidden p-2.5 sm:p-4 [overflow-wrap:anywhere]"
 					style={{
 						gridColumn: `${(packedLayoutByKey[sectionKey]?.x ?? 0) + 1} / span ${packedLayoutByKey[sectionKey]?.w ?? 6}`,
 						gridRow: `${(packedLayoutByKey[sectionKey]?.y ?? 0) + 1} / span ${packedLayoutByKey[sectionKey]?.h ?? 6}`,

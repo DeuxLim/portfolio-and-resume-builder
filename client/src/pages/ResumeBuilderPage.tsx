@@ -2224,12 +2224,12 @@ export default function ResumeBuilderPage() {
 								Close
 							</Button>
 						</div>
-						<div className="h-full overflow-auto p-3 sm:p-4">
-							<div className="overflow-hidden rounded-md border">
+						<div className="flex-1 min-h-0 overflow-hidden p-3 sm:p-4">
+							<div className="h-full overflow-hidden rounded-md border">
 								<iframe
 									title="Resume PDF Preview Modal"
 									src={pdfInlineHref}
-									className="h-[78dvh] min-h-[500px] w-full bg-white sm:h-[860px]"
+									className="h-full w-full bg-white"
 								/>
 							</div>
 						</div>

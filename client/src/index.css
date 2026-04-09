@@ -457,6 +457,52 @@
 		transition: background-color 220ms ease, color 220ms ease;
 	}
 
+	/* Scoped compact density for AppLayout routes only. */
+	.app-density-compact {
+		font-size: 0.95rem;
+	}
+
+	.app-density-compact .app-layout-inner {
+		padding-top: 0.875rem;
+		padding-bottom: 2.5rem;
+	}
+
+	.app-density-compact .app-layout-header {
+		top: 0.65rem;
+		margin-bottom: 1.2rem;
+	}
+
+	.app-density-compact :where(.text-7xl) {
+		font-size: clamp(3rem, 5.1vw, 4.2rem);
+		line-height: 0.98;
+	}
+
+	.app-density-compact :where(.text-6xl) {
+		font-size: clamp(2.55rem, 4.4vw, 3.45rem);
+		line-height: 0.99;
+	}
+
+	.app-density-compact :where(.text-5xl) {
+		font-size: clamp(2.15rem, 3.6vw, 2.95rem);
+		line-height: 1;
+	}
+
+	.app-density-compact :where(.text-4xl) {
+		font-size: clamp(1.8rem, 2.9vw, 2.35rem);
+		line-height: 1.02;
+	}
+
+	@media (min-width: 640px) {
+		.app-density-compact .app-layout-inner {
+			padding-top: 1.2rem;
+			padding-bottom: 2.8rem;
+		}
+
+		.app-density-compact .app-layout-header {
+			margin-bottom: 1.5rem;
+		}
+	}
+
 	html.theme-switching body,
 	html.theme-switching .app-card,
 	html.theme-switching .app-chip,

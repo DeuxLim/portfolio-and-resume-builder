@@ -341,8 +341,8 @@ export default function DashboardPage() {
 	const miniPreviewCanvasWidth = 980;
 	const miniPortfolioCanvasHeight = 1120;
 	const miniResumeCanvasHeight = 980;
-	const miniPortfolioScale = 0.22;
-	const miniResumeScale = 0.24;
+	const miniPortfolioScale = 0.2;
+	const miniResumeScale = 0.22;
 	const miniPortfolioFrameStyle = {
 		width: `${miniPreviewCanvasWidth * miniPortfolioScale}px`,
 		height: `${miniPortfolioCanvasHeight * miniPortfolioScale}px`,
@@ -448,7 +448,7 @@ export default function DashboardPage() {
 	};
 
 		return (
-			<main className="space-y-3 pb-4">
+			<main className="space-y-4 pb-5 sm:space-y-5 sm:pb-6">
 			{toast ? (
 				<div className="fixed right-4 top-4 z-50">
 					<div
@@ -519,7 +519,7 @@ export default function DashboardPage() {
 				</CardHeader>
 			</Card>
 
-				<div className="grid gap-3 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] xl:items-stretch">
+				<div className="grid gap-3 xl:grid-cols-2 xl:items-stretch">
 					<Card className="border-border/70 shadow-none xl:h-full">
 						<CardHeader className="pb-2">
 							<CardTitle className="text-lg">Quick Previews</CardTitle>
@@ -530,7 +530,7 @@ export default function DashboardPage() {
 						<CardContent className="flex flex-col gap-2 pb-4 pt-0 md:flex-row md:flex-wrap md:items-start md:justify-start md:gap-2">
 							{publicLink ? (
 								<div
-									className="w-full max-w-[320px] space-y-1.5 md:w-[320px]"
+									className="w-full max-w-[288px] space-y-1.5 md:w-[288px]"
 									role="button"
 									tabIndex={0}
 									aria-label="Open portfolio preview modal"
@@ -562,7 +562,7 @@ export default function DashboardPage() {
 									</div>
 								</div>
 							) : (
-								<div className="w-full max-w-[320px] space-y-1.5 md:w-[320px]">
+								<div className="w-full max-w-[288px] space-y-1.5 md:w-[288px]">
 									<div className="text-sm font-medium leading-none">Portfolio</div>
 									<div className="rounded-lg border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
 										Public URL is not available yet.
@@ -571,7 +571,7 @@ export default function DashboardPage() {
 							)}
 
 							<div
-								className="w-full max-w-[320px] space-y-1.5 md:w-[320px]"
+								className="w-full max-w-[288px] space-y-1.5 md:w-[288px]"
 								role="button"
 								tabIndex={0}
 								aria-label="Open resume preview modal"

@@ -174,17 +174,22 @@ export default function AppLayout() {
 		setMobileNavOpen(false);
 	}, [location.pathname]);
 
-	const shellWidthClass = "max-w-[118rem]";
+	const shellWidthClass = isEditorActive || isResumeBuilderActive
+		? "max-w-[96rem]"
+		: isDashboardActive
+			? "max-w-[88rem]"
+			: "max-w-7xl";
+	const headerSpacingClass = "mb-5 sm:mb-6";
 
 	return (
-		<div className="app-shell app-ui-shell min-h-dvh pb-24 md:pb-0">
+		<div className="app-shell app-ui-shell app-density-compact min-h-dvh pb-24 md:pb-0">
 			<div
 				className={cn(
-					"relative mx-auto w-full px-3 pt-4 pb-12 sm:px-6 sm:pt-6",
+					"app-layout-inner relative mx-auto w-full px-3 pt-4 pb-12 sm:px-6 sm:pt-6",
 					shellWidthClass,
 				)}
 			>
-				<header className="sticky top-3 z-40 mb-6 sm:mb-8">
+				<header className={cn("app-layout-header sticky top-3 z-40", headerSpacingClass)}>
 					<div className="v2-shell-header px-3 py-3 sm:px-4">
 						<div className="flex items-center gap-2 sm:gap-3">
 							<Link
