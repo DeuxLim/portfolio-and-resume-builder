@@ -9,7 +9,12 @@ import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import ThemeToggleButton from "@/components/ThemeToggleButton";
 import { useSession } from "@/hooks/useSession";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+	Sheet,
+	SheetContent,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import {
 	BookOpen,
 	ExternalLink,
@@ -53,7 +58,8 @@ export default function AppLayout() {
 	const isEditorActive =
 		location.pathname.startsWith("/dashboard/edit") ||
 		location.pathname.startsWith("/dashboard/create");
-	const isResumeBuilderActive = location.pathname.startsWith("/dashboard/resume");
+	const isResumeBuilderActive =
+		location.pathname.startsWith("/dashboard/resume");
 	const isHomeActive = location.pathname === "/";
 	const isSampleActive = location.pathname.startsWith("/sample");
 	const isGuideActive = location.pathname.startsWith("/guide");
@@ -67,7 +73,7 @@ export default function AppLayout() {
 			},
 			{
 				to: "/dashboard/edit",
-				label: "Portfolio Builder",
+				label: "Profile Builder",
 				active: isEditorActive,
 			},
 			{
@@ -81,7 +87,12 @@ export default function AppLayout() {
 				active: isGuideActive,
 			},
 		],
-		[isDashboardActive, isEditorActive, isGuideActive, isResumeBuilderActive],
+		[
+			isDashboardActive,
+			isEditorActive,
+			isGuideActive,
+			isResumeBuilderActive,
+		],
 	);
 
 	const desktopGuestLinks = useMemo(
@@ -115,7 +126,7 @@ export default function AppLayout() {
 				},
 				{
 					to: "/dashboard/edit",
-					label: "Portfolio",
+					label: "Profile",
 					icon: PanelsTopLeft,
 					active: isEditorActive,
 				},
@@ -163,14 +174,16 @@ export default function AppLayout() {
 		setMobileNavOpen(false);
 	}, [location.pathname]);
 
-	const shellWidthClass =
-		location.pathname.startsWith("/dashboard") || location.pathname.startsWith("/guide")
-		? "max-w-[118rem]"
-		: "max-w-7xl";
+	const shellWidthClass = "max-w-[118rem]";
 
 	return (
 		<div className="app-shell app-ui-shell min-h-dvh pb-24 md:pb-0">
-			<div className={cn("relative mx-auto w-full px-3 pt-4 pb-12 sm:px-6 sm:pt-6", shellWidthClass)}>
+			<div
+				className={cn(
+					"relative mx-auto w-full px-3 pt-4 pb-12 sm:px-6 sm:pt-6",
+					shellWidthClass,
+				)}
+			>
 				<header className="sticky top-3 z-40 mb-6 sm:mb-8">
 					<div className="v2-shell-header px-3 py-3 sm:px-4">
 						<div className="flex items-center gap-2 sm:gap-3">
@@ -179,18 +192,24 @@ export default function AppLayout() {
 								className="min-w-0 flex-1 px-1 py-1 transition-opacity hover:opacity-80 sm:flex-none"
 							>
 								<div className="truncate text-[1rem] font-semibold tracking-[0.03em] text-foreground/95">
-									Folio
+									Profile Builder
 								</div>
 							</Link>
 
 							<nav className="hidden min-w-0 flex-1 items-center justify-center gap-3 md:flex">
 								<div className="flex h-9 items-center gap-1.5">
-									{(isAuthed ? desktopAuthedLinks : desktopGuestLinks).map((entry) => (
+									{(isAuthed
+										? desktopAuthedLinks
+										: desktopGuestLinks
+									).map((entry) => (
 										<Link
 											key={entry.to}
 											to={entry.to}
 											className={cn(
-												buttonVariants({ variant: "ghost", size: "sm" }),
+												buttonVariants({
+													variant: "ghost",
+													size: "sm",
+												}),
 												"rounded-full",
 												entry.active && navActiveClass,
 											)}
@@ -201,7 +220,10 @@ export default function AppLayout() {
 								</div>
 								{isAuthed ? (
 									<>
-										<Separator orientation="vertical" className="h-9" />
+										<Separator
+											orientation="vertical"
+											className="h-9"
+										/>
 										<div className="flex h-9 items-center gap-2">
 											{publicPortfolioPath ? (
 												<Link
@@ -209,7 +231,10 @@ export default function AppLayout() {
 													target="_blank"
 													rel="noopener noreferrer"
 													className={cn(
-														buttonVariants({ variant: "outline", size: "sm" }),
+														buttonVariants({
+															variant: "outline",
+															size: "sm",
+														}),
 														"rounded-full",
 													)}
 												>
@@ -222,7 +247,10 @@ export default function AppLayout() {
 												target="_blank"
 												rel="noopener noreferrer"
 												className={cn(
-													buttonVariants({ variant: "outline", size: "sm" }),
+													buttonVariants({
+														variant: "outline",
+														size: "sm",
+													}),
 													"rounded-full",
 												)}
 											>
@@ -239,11 +267,19 @@ export default function AppLayout() {
 									<div className="hidden items-center gap-2 md:flex">
 										<Link
 											to="/login"
-											className={buttonVariants({ variant: "ghost", size: "sm" })}
+											className={buttonVariants({
+												variant: "ghost",
+												size: "sm",
+											})}
 										>
 											Log in
 										</Link>
-										<Link to="/signup" className={buttonVariants({ size: "sm" })}>
+										<Link
+											to="/signup"
+											className={buttonVariants({
+												size: "sm",
+											})}
+										>
 											Create account
 										</Link>
 									</div>
@@ -277,7 +313,8 @@ export default function AppLayout() {
 							to={item.to}
 							className={cn(
 								"flex flex-col items-center justify-center gap-0.5 rounded-2xl px-2 py-2 text-[0.64rem] font-semibold tracking-[0.04em] text-muted-foreground transition-colors",
-								item.active && "bg-primary text-primary-foreground",
+								item.active &&
+									"bg-primary text-primary-foreground",
 							)}
 						>
 							<item.icon className="size-4" />
@@ -300,7 +337,9 @@ export default function AppLayout() {
 			<Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
 				<SheetContent side="right" className="w-[88vw] max-w-md p-0">
 					<SheetHeader className="border-b border-border/60 px-5 py-4">
-						<SheetTitle className="text-base">Workspace Menu</SheetTitle>
+						<SheetTitle className="text-base">
+							Workspace Menu
+						</SheetTitle>
 					</SheetHeader>
 
 					<div className="flex h-full flex-col gap-6 overflow-y-auto px-5 py-5">
@@ -309,14 +348,20 @@ export default function AppLayout() {
 								NAVIGATION
 							</div>
 							<div className="space-y-3">
-								{(isAuthed ? desktopAuthedLinks : desktopGuestLinks).map((entry) => (
+								{(isAuthed
+									? desktopAuthedLinks
+									: desktopGuestLinks
+								).map((entry) => (
 									<Link
 										key={entry.to}
 										to={entry.to}
 										className={cn(
-											buttonVariants({ variant: "outline" }),
+											buttonVariants({
+												variant: "outline",
+											}),
 											"w-full justify-start",
-											entry.active && "border-primary/55 bg-primary/12 text-primary",
+											entry.active &&
+												"border-primary/55 bg-primary/12 text-primary",
 										)}
 									>
 										{entry.label}
@@ -338,7 +383,9 @@ export default function AppLayout() {
 												target="_blank"
 												rel="noopener noreferrer"
 												className={cn(
-													buttonVariants({ variant: "outline" }),
+													buttonVariants({
+														variant: "outline",
+													}),
 													"w-full justify-start",
 												)}
 											>
@@ -351,7 +398,9 @@ export default function AppLayout() {
 											target="_blank"
 											rel="noopener noreferrer"
 											className={cn(
-												buttonVariants({ variant: "outline" }),
+												buttonVariants({
+													variant: "outline",
+												}),
 												"w-full justify-start",
 											)}
 										>
@@ -363,7 +412,9 @@ export default function AppLayout() {
 											target="_blank"
 											rel="noopener noreferrer"
 											className={cn(
-												buttonVariants({ variant: "outline" }),
+												buttonVariants({
+													variant: "outline",
+												}),
 												"w-full justify-start",
 											)}
 										>
@@ -376,7 +427,9 @@ export default function AppLayout() {
 												target="_blank"
 												rel="noopener noreferrer"
 												className={cn(
-													buttonVariants({ variant: "outline" }),
+													buttonVariants({
+														variant: "outline",
+													}),
 													"w-full justify-start",
 												)}
 											>
@@ -396,7 +449,9 @@ export default function AppLayout() {
 										disabled={logoutMutation.isPending}
 									>
 										<LogOut className="size-4" />
-										{logoutMutation.isPending ? "Logging out..." : "Log out"}
+										{logoutMutation.isPending
+											? "Logging out..."
+											: "Log out"}
 									</Button>
 									<ThemeToggleButton />
 								</div>
@@ -404,10 +459,20 @@ export default function AppLayout() {
 						) : (
 							<div className="mt-auto space-y-3 pt-2">
 								<div className="flex flex-col gap-2">
-									<Link to="/login" className={buttonVariants({ variant: "outline" })}>
+									<Link
+										to="/login"
+										className={buttonVariants({
+											variant: "outline",
+										})}
+									>
 										Log in
 									</Link>
-									<Link to="/signup" className={buttonVariants({ size: "default" })}>
+									<Link
+										to="/signup"
+										className={buttonVariants({
+											size: "default",
+										})}
+									>
 										Create account
 									</Link>
 								</div>

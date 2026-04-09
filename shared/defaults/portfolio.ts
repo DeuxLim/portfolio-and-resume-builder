@@ -319,5 +319,26 @@ export const samplePortfolio: PortfolioRecord = {
 			links: [],
 		},
 	],
+	layout: {
+		...defaultPortfolioLayout,
+		sectionHeights: {
+			about: 10,
+			timeline: 10,
+			experience: 14,
+			tech: 14,
+			projects: 12,
+			heatmap: 7,
+			custom: 7,
+		},
+		sectionPositions: {
+			about: { x: 0, y: 0 },
+			timeline: { x: 8, y: 0 },
+			experience: { x: 0, y: 10 },
+			tech: { x: 8, y: 10 },
+			projects: { x: 0, y: 24 },
+			heatmap: { x: 0, y: 36 },
+			custom: { x: 6, y: 36 },
+		},
+	},
 	chatEnabled: true,
 };

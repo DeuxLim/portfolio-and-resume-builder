@@ -1,6 +1,5 @@
 import { Link, Navigate } from "react-router";
 import { motion } from "motion/react";
-import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -54,20 +53,16 @@ export default function LandingPage() {
 			<section className="relative -mx-3 overflow-hidden rounded-[2rem] border border-border/70 bg-background/85 px-4 py-8 sm:mx-0 sm:px-8 sm:py-12 lg:px-12 lg:py-14">
 				<div className="pointer-events-none absolute -top-12 left-10 h-44 w-44 rounded-full bg-indigo-400/20 blur-3xl" />
 				<div className="pointer-events-none absolute top-12 right-8 h-52 w-52 rounded-full bg-sky-400/18 blur-3xl" />
-				<div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]">
+				<div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.82fr)_minmax(0,1.18fr)]">
 					<motion.div
 						initial={{ opacity: 0, y: 16 }}
 						animate={{ opacity: 1, y: 0 }}
 						transition={{ duration: 0.5, ease: "easeOut" }}
 						className="space-y-7"
 					>
-						<Badge variant="outline" className="w-fit">
-							<SparkLineIcon />
-							Studio v2
-						</Badge>
 						<div className="space-y-4">
 							<p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">
-								RESUME + PORTFOLIO BUILDER
+								PROFILE BUILDER
 							</p>
 							<h1 className="max-w-2xl text-5xl leading-[0.94] sm:text-6xl lg:text-7xl">
 								Build your career site like a premium product release.
@@ -186,7 +181,7 @@ export default function LandingPage() {
 							className={buttonVariants({ variant: "outline", size: "lg" })}
 						>
 							<Layers3 className="size-4" />
-							Try portfolio builder
+							Try profile builder
 						</Link>
 						<Link
 							to="/dashboard/resume"
@@ -196,6 +191,29 @@ export default function LandingPage() {
 							Try resume builder
 						</Link>
 					</div>
+				</div>
+			</section>
+
+			<section className="v2-panel p-6 sm:p-8">
+				<div className="mb-5 flex items-center gap-2">
+					<FileText className="size-4 text-primary" />
+					<p className="text-xs font-semibold tracking-[0.17em] text-muted-foreground">
+						SAMPLE RESUME OUTPUT
+					</p>
+				</div>
+				<div className="space-y-3">
+					<h2 className="text-3xl leading-tight sm:text-4xl">ATS-ready resume preview</h2>
+					<p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
+						Resume export is a first-class feature in Profile Builder. The sample below
+						shows the generated PDF output.
+					</p>
+				</div>
+				<div className="mt-6 overflow-hidden rounded-[1.2rem] border border-border/70 bg-card">
+					<iframe
+						title="Sample resume output"
+						src="/resume.pdf#toolbar=0&navpanes=0&scrollbar=0"
+						className="h-[30rem] w-full bg-white sm:h-[40rem]"
+					/>
 				</div>
 			</section>
 
@@ -220,15 +238,5 @@ export default function LandingPage() {
 				</div>
 			</section>
 		</main>
-	);
-}
-
-function SparkLineIcon() {
-	return (
-		<span aria-hidden="true" className="relative mr-1 inline-flex h-2.5 w-6 items-center">
-			<span className="absolute left-0 h-[2px] w-full rounded-full bg-current/30" />
-			<span className="absolute left-1 h-[2px] w-1 rounded-full bg-current" />
-			<span className="absolute left-3 h-[2px] w-2 rounded-full bg-current" />
-		</span>
 	);
 }

@@ -466,7 +466,7 @@ export default function DashboardPage() {
 			<Card className="v2-panel xl:shrink-0">
 				<CardHeader className="gap-3">
 					<div className="min-w-0 space-y-1.5">
-						<CardTitle className="text-2xl sm:text-3xl">Resume + Portfolio Builder</CardTitle>
+						<CardTitle className="text-2xl sm:text-3xl">Profile Builder</CardTitle>
 						<CardDescription>
 							Launch key actions and preview your outputs instantly.
 						</CardDescription>
