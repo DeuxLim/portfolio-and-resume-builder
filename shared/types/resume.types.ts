@@ -110,3 +110,18 @@ export type ResumeValidationResult = {
 	estimatedPages: number;
 	canExportPdf: boolean;
 };
+
+export type ResumeVersionSummary = {
+	id: number;
+	name: string;
+	isActive: boolean;
+	createdAt?: string;
+	updatedAt?: string;
+};
+
+export type ResumeVersionDetail = {
+	version: ResumeVersionSummary;
+	resume: ResumeRecord;
+};
+
+export type ResumeVersionBase = "latest" | "live" | "blank";

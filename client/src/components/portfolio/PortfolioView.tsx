@@ -8,7 +8,7 @@ export default function PortfolioView({
 	portfolio: PublicPortfolio;
 }) {
 	return (
-		<main className="flex flex-col gap-3 sm:gap-4">
+		<main className="generated-output flex flex-col gap-3 sm:gap-4">
 			<Header portfolio={portfolio} />
 			<Content portfolio={portfolio} />
 		</main>

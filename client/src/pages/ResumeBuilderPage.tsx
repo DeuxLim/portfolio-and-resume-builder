@@ -1,7 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import {
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type ChangeEvent,
+	type PointerEvent as ReactPointerEvent,
+} from "react";
+import { useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, apiBaseUrl } from "@/lib/axios.client";
+import type { AxiosError } from "axios";
 import { useSession } from "@/hooks/useSession";
 import { usePinnedSidebar } from "@/hooks/usePinnedSidebar";
 import {
@@ -18,8 +26,12 @@ import type {
 	ResumeStructuredListItem,
 	ResumeTemplateKey,
 	ResumeValidationResult,
+	ResumeVersionBase,
+	ResumeVersionDetail,
+	ResumeVersionSummary,
 } from "../../../shared/types/resume.types";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import {
 	Card,
 	CardAction,
@@ -33,13 +45,14 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
 import {
 	ArrowDown,
 	ArrowUp,
+	ChevronDown,
 	Download,
 	Eye,
-	FileText,
+	EyeOff,
+	Pencil,
 	Save,
 	Shuffle,
 	Trash2,
@@ -76,28 +89,152 @@ const resumeTemplateOptions: Array<{ key: ResumeTemplateKey; label: string }> = 
 	{ key: "harvard_classic_v1", label: "Harvard Classic" },
 ];
 
+const versionBaseOptions: Array<{
+	value: ResumeVersionBase;
+	label: string;
+	description: string;
+}> = [
+	{
+		value: "latest",
+		label: "Most recent",
+		description: "Start from the latest updated version snapshot.",
+	},
+	{
+		value: "live",
+		label: "Current live",
+		description: "Start from what visitors currently see.",
+	},
+	{
+		value: "blank",
+		label: "Clean slate",
+		description: "Start with empty content fields.",
+	},
+];
+
 const makeId = () =>
 	typeof crypto !== "undefined" && "randomUUID" in crypto
 		? crypto.randomUUID()
 		: `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 
-const editorCardClassName = "border-border/70 shadow-none";
-const contentSectionCardClassName = `${editorCardClassName} scroll-mt-24`;
-const itemBlockClassName = "space-y-2 rounded-lg border border-border/70 bg-muted/20 p-3";
+const editorCardClassName = "v2-panel shadow-none";
+const contentSectionCardClassName = `${editorCardClassName} min-w-0 scroll-mt-28`;
+const itemBlockClassName = "min-w-0 space-y-2 rounded-2xl border border-border/70 bg-muted/35 p-4";
+const FLOATING_PREVIEW_MIN_OFFSET = 8;
+const FLOATING_PREVIEW_MIN_TOP = 96;
+const FLOATING_PREVIEW_COLLAPSED_WIDTH = 288;
+const FLOATING_PREVIEW_COLLAPSED_HEIGHT = 260;
+type StructuredSectionKey = (typeof listSections)[number]["key"];
+type ResumeCreateModalKind = "experience" | "education" | "project" | "structured";
+type ResumeCreateModalState = {
+	kind: ResumeCreateModalKind;
+	title: string;
+	subtitle: string;
+	sectionKey?: StructuredSectionKey;
+	submitLabel: string;
+};
+type ResumeCreateFormState = {
+	experienceRole: string;
+	experienceCompany: string;
+	experienceLocation: string;
+	experienceStartDate: string;
+	experienceEndDate: string;
+	experienceBullets: string;
+	educationDegree: string;
+	educationSchool: string;
+	educationLocation: string;
+	educationGraduationDate: string;
+	educationDetails: string;
+	projectName: string;
+	projectDescription: string;
+	projectUrl: string;
+	projectHighlights: string;
+	structuredTitle: string;
+	structuredSubtitle: string;
+	structuredDate: string;
+	structuredLocation: string;
+	structuredDetails: string;
+	structuredUrl: string;
+};
+const makeCreateFormDefaults = (): ResumeCreateFormState => ({
+	experienceRole: "",
+	experienceCompany: "",
+	experienceLocation: "",
+	experienceStartDate: "",
+	experienceEndDate: "",
+	experienceBullets: "",
+	educationDegree: "",
+	educationSchool: "",
+	educationLocation: "",
+	educationGraduationDate: "",
+	educationDetails: "",
+	projectName: "",
+	projectDescription: "",
+	projectUrl: "",
+	projectHighlights: "",
+	structuredTitle: "",
+	structuredSubtitle: "",
+	structuredDate: "",
+	structuredLocation: "",
+	structuredDetails: "",
+	structuredUrl: "",
+});
+const parseTextareaLines = (value: string) =>
+	value
+		.split("\n")
+		.map((entry) => entry.trim())
+		.filter(Boolean);
 
 export default function ResumeBuilderPage() {
 	const navigate = useNavigate();
+	const [searchParams] = useSearchParams();
 	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
+	const selectedVersionId = Number(searchParams.get("versionId"));
+	const hasSelectedVersionId =
+		Number.isFinite(selectedVersionId) && selectedVersionId > 0;
+	const draftMode = searchParams.get("draft") === "1" && !hasSelectedVersionId;
+	const draftBaseInput = String(searchParams.get("base") ?? "latest").toLowerCase();
+	const draftBase: ResumeVersionBase =
+		draftBaseInput === "blank" || draftBaseInput === "live" || draftBaseInput === "latest"
+			? draftBaseInput
+			: "latest";
+	const draftName = String(searchParams.get("name") ?? "").trim();
+	const openedFromDashboardPreview = searchParams.get("preview") === "1";
 	const [resume, setResume] = useState<ResumeRecord | null>(null);
 	const [toast, setToast] = useState<{
 		type: "success" | "error";
 		message: string;
 	} | null>(null);
 	const [activeTab, setActiveTab] = useState("content");
-	const [previewOpen, setPreviewOpen] = useState(false);
+	const [previewOpen, setPreviewOpen] = useState(() => openedFromDashboardPreview);
+	const [isValidationSummaryExpanded, setIsValidationSummaryExpanded] = useState(false);
+	const [pdfPreviewNonce, setPdfPreviewNonce] = useState(0);
+	const [floatingPreviewPosition, setFloatingPreviewPosition] = useState<{
+		x: number;
+		y: number;
+	} | null>(null);
+	const [isFloatingPreviewDragging, setIsFloatingPreviewDragging] = useState(false);
+	const [isFloatingPreviewMinimized, setIsFloatingPreviewMinimized] = useState(true);
 	const [shortcutsOpen, setShortcutsOpen] = useState(false);
 	const [resetLayoutDialogOpen, setResetLayoutDialogOpen] = useState(false);
+	const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+	const [renameValue, setRenameValue] = useState("");
+	const [versionToCreate, setVersionToCreate] = useState<{
+		name: string;
+		base: ResumeVersionBase;
+		error: string;
+	} | null>(null);
+	const [createModal, setCreateModal] = useState<ResumeCreateModalState | null>(null);
+	const [createForm, setCreateForm] = useState<ResumeCreateFormState>(() => makeCreateFormDefaults());
+	const floatingPreviewDragRef = useRef<{
+		pointerId: number;
+		startX: number;
+		startY: number;
+		originX: number;
+		originY: number;
+	} | null>(null);
+	const hydratedResumeSourceRef = useRef<string | null>(null);
 	const [activeContentSection, setActiveContentSection] = useState(
 		"resume-content-header",
 	);
@@ -131,10 +268,101 @@ export default function ResumeBuilderPage() {
 		enabled: Boolean(sessionQuery.data?.user),
 	});
 
+	const versionsQuery = useQuery({
+		queryKey: ["my-resume-versions"],
+		queryFn: async () => {
+			const { data } = await api.get<{ versions: ResumeVersionSummary[] }>(
+				"/resumes/me/versions",
+			);
+			return data.versions;
+		},
+		enabled: Boolean(sessionQuery.data?.user),
+	});
+
+	const versionDetailQuery = useQuery({
+		queryKey: ["my-resume-version", selectedVersionId],
+		queryFn: async () => {
+			const { data } = await api.get<ResumeVersionDetail>(
+				`/resumes/me/versions/${selectedVersionId}`,
+			);
+			return data;
+		},
+		enabled: Boolean(sessionQuery.data?.user) && hasSelectedVersionId,
+	});
+
+	const versionPreviewQuery = useQuery({
+		queryKey: ["my-resume-version-preview", draftBase],
+		queryFn: async () => {
+			const { data } = await api.get<{ resume: ResumeRecord }>(
+				`/resumes/me/versions/preview?base=${draftBase}`,
+			);
+			return data.resume;
+		},
+		enabled: Boolean(sessionQuery.data?.user) && draftMode,
+	});
+
+	const activeVersion = versionsQuery.data?.find((version) => version.isActive) ?? null;
+
 	useEffect(() => {
-		if (!resumeQuery.data) return;
+		if (!versionDetailQuery.data?.version?.name) return;
+		setRenameValue(versionDetailQuery.data.version.name);
+	}, [versionDetailQuery.data?.version?.name]);
+
+	useEffect(() => {
+		const sourceKey = hasSelectedVersionId
+			? `version:${selectedVersionId}`
+			: draftMode
+				? `draft:${draftBase}:${draftName || "untitled"}`
+				: "live";
+		const sourceChanged = hydratedResumeSourceRef.current !== sourceKey;
+		if (sourceChanged) {
+			hydratedResumeSourceRef.current = sourceKey;
+		}
+		const shouldHydrate = sourceChanged || !resume;
+		if (!shouldHydrate) return;
+
+		if (hasSelectedVersionId) {
+			if (!versionDetailQuery.data) {
+				setResume(null);
+				return;
+			}
+			const selectedVersionResume =
+				versionDetailQuery.data.version.isActive && resumeQuery.data
+					? resumeQuery.data.resume
+					: versionDetailQuery.data.resume;
+			setResume(cloneResume(selectedVersionResume));
+			return;
+		}
+		if (draftMode) {
+			if (!versionPreviewQuery.data) {
+				setResume(null);
+				return;
+			}
+			setResume(cloneResume(versionPreviewQuery.data));
+			return;
+		}
+		if (!resumeQuery.data?.resume) return;
 		setResume(cloneResume(resumeQuery.data.resume));
-	}, [resumeQuery.data]);
+	}, [
+		draftBase,
+		draftMode,
+		draftName,
+		hasSelectedVersionId,
+		resume,
+		resumeQuery.data,
+		selectedVersionId,
+		versionDetailQuery.data,
+		versionPreviewQuery.data,
+	]);
+
+	useEffect(() => {
+		if (!hasSelectedVersionId || !versionDetailQuery.isError) return;
+		setToast({
+			type: "error",
+			message: "Selected version was not found. Redirected to live resume editor.",
+		});
+		navigate("/dashboard/resume", { replace: true });
+	}, [hasSelectedVersionId, navigate, versionDetailQuery.isError]);
 
 	const liveValidation = useMemo(
 		() => (resume ? getResumeValidation(resume) : null),
@@ -183,21 +411,200 @@ export default function ResumeBuilderPage() {
 		[],
 	);
 
+	const persistResumeWithContext = async (payload: ResumeRecord) => {
+		if (draftMode) {
+			if (!draftName) {
+				throw new Error("Version name is required.");
+			}
+			const created = await api.post<{ version: ResumeVersionSummary }>(
+				"/resumes/me/versions",
+				{ name: draftName, base: draftBase, resume: payload },
+			);
+			const createdVersionId = created.data.version.id;
+			const { data } = await api.get<ResumeVersionDetail>(
+				`/resumes/me/versions/${createdVersionId}`,
+			);
+			return {
+				resume: data.resume,
+				savedDraft: true,
+				createdVersionId,
+			};
+		}
+
+		if (
+			hasSelectedVersionId &&
+			versionDetailQuery.data?.version &&
+			!versionDetailQuery.data.version.isActive
+		) {
+			const { data } = await api.put<ResumeVersionDetail>(
+				`/resumes/me/versions/${selectedVersionId}/snapshot`,
+				{ resume: payload },
+			);
+			return {
+				resume: data.resume,
+				savedDraft: true,
+				createdVersionId: null as number | null,
+			};
+		}
+
+		const { data } = await api.put<{ resume: ResumeRecord; validation: ResumeValidationResult }>(
+			"/resumes/me",
+			{ resume: payload },
+		);
+		return {
+			resume: data.resume,
+			savedDraft: false,
+			createdVersionId: null as number | null,
+		};
+	};
+
 	const saveMutation = useMutation({
 		mutationFn: async () => {
-			const { data } = await api.put<{ resume: ResumeRecord; validation: ResumeValidationResult }>(
-				"/resumes/me",
-				{ resume },
-			);
-			return data;
+			if (!resume) {
+				throw new Error("Resume data is not ready.");
+			}
+			return persistResumeWithContext(cloneResume(resume));
 		},
-		onSuccess: async (data) => {
-			setToast({ type: "success", message: "Resume saved." });
-			setResume(cloneResume(data.resume));
+		onSuccess: async (result) => {
+			setToast({
+				type: "success",
+				message: result.savedDraft
+					? "Saved. Draft version updated."
+					: "Saved. Your live resume is updated.",
+			});
+			setResume(cloneResume(result.resume));
+			setPdfPreviewNonce((current) => current + 1);
 			await queryClient.invalidateQueries({ queryKey: ["my-resume"] });
+			await queryClient.invalidateQueries({ queryKey: ["my-resume-versions"] });
+			if (result.createdVersionId) {
+				navigate(`/dashboard/resume?versionId=${result.createdVersionId}`, {
+					replace: true,
+				});
+				await queryClient.invalidateQueries({
+					queryKey: ["my-resume-version", result.createdVersionId],
+				});
+				return;
+			}
+			if (hasSelectedVersionId) {
+				await queryClient.invalidateQueries({
+					queryKey: ["my-resume-version", selectedVersionId],
+				});
+			}
+		},
+		onError: (error) => {
+			const responseData = (error as AxiosError<{ message?: string }>).response
+				?.data;
+			const fallback =
+				error instanceof Error && error.message
+					? error.message
+					: "Failed to save resume.";
+			setToast({
+				type: "error",
+				message: responseData?.message ?? fallback,
+			});
+		},
+	});
+
+	const applyTemplateMutation = useMutation({
+		mutationFn: async (nextResume: ResumeRecord) =>
+			persistResumeWithContext(cloneResume(nextResume)),
+		onSuccess: async (result) => {
+			setResume(cloneResume(result.resume));
+			setPdfPreviewNonce((current) => current + 1);
+			await queryClient.invalidateQueries({ queryKey: ["my-resume"] });
+			await queryClient.invalidateQueries({ queryKey: ["my-resume-versions"] });
+			if (result.createdVersionId) {
+				navigate(`/dashboard/resume?versionId=${result.createdVersionId}`, {
+					replace: true,
+				});
+				await queryClient.invalidateQueries({
+					queryKey: ["my-resume-version", result.createdVersionId],
+				});
+				return;
+			}
+			if (hasSelectedVersionId) {
+				await queryClient.invalidateQueries({
+					queryKey: ["my-resume-version", selectedVersionId],
+				});
+			}
+		},
+		onError: (error) => {
+			const responseData = (error as AxiosError<{ message?: string }>).response
+				?.data;
+			setToast({
+				type: "error",
+				message: responseData?.message ?? "Failed to apply PDF template.",
+			});
+		},
+	});
+
+	const createVersionMutation = useMutation({
+		mutationFn: async (input: { name: string; base: ResumeVersionBase }) => input,
+		onSuccess: async (input) => {
+			setVersionToCreate(null);
+			navigate(
+				`/dashboard/resume?draft=1&base=${encodeURIComponent(input.base)}&name=${encodeURIComponent(input.name)}`,
+			);
+		},
+	});
+
+	const renameVersionMutation = useMutation({
+		mutationFn: async (nextName: string) => {
+			const versionId = hasSelectedVersionId
+				? selectedVersionId
+				: activeVersion?.id;
+			if (!versionId) throw new Error("Version not found.");
+			return api.put(`/resumes/me/versions/${versionId}`, { name: nextName });
+		},
+		onSuccess: async () => {
+			setToast({ type: "success", message: "Version renamed." });
+			setRenameDialogOpen(false);
+			await queryClient.invalidateQueries({ queryKey: ["my-resume-versions"] });
+			if (hasSelectedVersionId) {
+				await queryClient.invalidateQueries({
+					queryKey: ["my-resume-version", selectedVersionId],
+				});
+			}
 		},
 		onError: () => {
-			setToast({ type: "error", message: "Failed to save resume." });
+			setToast({ type: "error", message: "Failed to rename version." });
+		},
+	});
+
+	const activateVersionMutation = useMutation({
+		mutationFn: async (versionId: number) =>
+			api.put(`/resumes/me/versions/${versionId}/activate`),
+		onSuccess: async () => {
+			setToast({ type: "success", message: "Version is now live." });
+			await queryClient.invalidateQueries({ queryKey: ["my-resume"] });
+			await queryClient.invalidateQueries({ queryKey: ["my-resume-versions"] });
+			if (hasSelectedVersionId) {
+				await queryClient.invalidateQueries({
+					queryKey: ["my-resume-version", selectedVersionId],
+				});
+			}
+		},
+		onError: () => {
+			setToast({ type: "error", message: "Failed to set this version live." });
+		},
+	});
+
+	const deleteVersionMutation = useMutation({
+		mutationFn: async () => {
+			const versionId = hasSelectedVersionId
+				? selectedVersionId
+				: activeVersion?.id;
+			if (!versionId) throw new Error("Version not found.");
+			return api.delete(`/resumes/me/versions/${versionId}`);
+		},
+		onSuccess: async () => {
+			setToast({ type: "success", message: "Version deleted." });
+			setDeleteDialogOpen(false);
+			await queryClient.invalidateQueries({ queryKey: ["my-resume-versions"] });
+			navigate("/dashboard/resume");
+		},
+		onError: () => {
+			setToast({ type: "error", message: "Failed to delete version." });
 		},
 	});
 
@@ -219,14 +626,123 @@ export default function ResumeBuilderPage() {
 				return;
 			}
 			if (key === "escape") {
+				if (openedFromDashboardPreview && previewOpen) {
+					navigate("/dashboard");
+					return;
+				}
 				setPreviewOpen(false);
+				setIsFloatingPreviewDragging(false);
 				setShortcutsOpen(false);
 				setResetLayoutDialogOpen(false);
+				setRenameDialogOpen(false);
+				setDeleteDialogOpen(false);
+				setCreateModal(null);
+				setCreateForm(makeCreateFormDefaults());
 			}
 		};
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
-	}, [resume, saveMutation]);
+	}, [resume, previewOpen, saveMutation, openedFromDashboardPreview, navigate]);
+
+	useEffect(() => {
+		if (previewOpen || floatingPreviewPosition) return;
+		const maxX = Math.max(
+			FLOATING_PREVIEW_MIN_OFFSET,
+			window.innerWidth - FLOATING_PREVIEW_COLLAPSED_WIDTH - FLOATING_PREVIEW_MIN_OFFSET,
+		);
+		const maxY = Math.max(
+			FLOATING_PREVIEW_MIN_TOP,
+			window.innerHeight - FLOATING_PREVIEW_COLLAPSED_HEIGHT - FLOATING_PREVIEW_MIN_OFFSET,
+		);
+		setFloatingPreviewPosition({
+			x: maxX,
+			y: Math.min(
+				Math.max(
+					window.innerHeight - FLOATING_PREVIEW_COLLAPSED_HEIGHT - FLOATING_PREVIEW_MIN_OFFSET,
+					FLOATING_PREVIEW_MIN_TOP,
+				),
+				maxY,
+			),
+		});
+	}, [previewOpen, floatingPreviewPosition]);
+
+	useEffect(() => {
+		const onResize = () => {
+			setFloatingPreviewPosition((current) => {
+				if (!current) return current;
+				const maxX = Math.max(
+					FLOATING_PREVIEW_MIN_OFFSET,
+					window.innerWidth - FLOATING_PREVIEW_COLLAPSED_WIDTH - FLOATING_PREVIEW_MIN_OFFSET,
+				);
+				const maxY = Math.max(
+					FLOATING_PREVIEW_MIN_TOP,
+					window.innerHeight - FLOATING_PREVIEW_COLLAPSED_HEIGHT - FLOATING_PREVIEW_MIN_OFFSET,
+				);
+				return {
+					x: Math.min(Math.max(current.x, FLOATING_PREVIEW_MIN_OFFSET), maxX),
+					y: Math.min(Math.max(current.y, FLOATING_PREVIEW_MIN_TOP), maxY),
+				};
+			});
+		};
+		window.addEventListener("resize", onResize);
+		return () => window.removeEventListener("resize", onResize);
+	}, []);
+
+	useEffect(() => {
+		if (!previewOpen) return;
+		floatingPreviewDragRef.current = null;
+		setIsFloatingPreviewDragging(false);
+	}, [previewOpen]);
+
+	const handleFloatingPreviewPointerDown = (
+		event: ReactPointerEvent<HTMLDivElement>,
+	) => {
+		if ((event.target as HTMLElement).closest("button, a, input, textarea, select, label")) {
+			return;
+		}
+		if (!floatingPreviewPosition) return;
+		event.preventDefault();
+		event.currentTarget.setPointerCapture(event.pointerId);
+		floatingPreviewDragRef.current = {
+			pointerId: event.pointerId,
+			startX: event.clientX,
+			startY: event.clientY,
+			originX: floatingPreviewPosition.x,
+			originY: floatingPreviewPosition.y,
+		};
+		setIsFloatingPreviewDragging(true);
+	};
+
+	const handleFloatingPreviewPointerMove = (
+		event: ReactPointerEvent<HTMLDivElement>,
+	) => {
+		const dragState = floatingPreviewDragRef.current;
+		if (!dragState || dragState.pointerId !== event.pointerId) return;
+		const maxX = Math.max(
+			FLOATING_PREVIEW_MIN_OFFSET,
+			window.innerWidth - FLOATING_PREVIEW_COLLAPSED_WIDTH - FLOATING_PREVIEW_MIN_OFFSET,
+		);
+		const maxY = Math.max(
+			FLOATING_PREVIEW_MIN_TOP,
+			window.innerHeight - FLOATING_PREVIEW_COLLAPSED_HEIGHT - FLOATING_PREVIEW_MIN_OFFSET,
+		);
+		const nextX = dragState.originX + (event.clientX - dragState.startX);
+		const nextY = dragState.originY + (event.clientY - dragState.startY);
+		setFloatingPreviewPosition({
+			x: Math.min(Math.max(nextX, FLOATING_PREVIEW_MIN_OFFSET), maxX),
+			y: Math.min(Math.max(nextY, FLOATING_PREVIEW_MIN_TOP), maxY),
+		});
+	};
+
+	const stopFloatingPreviewDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+		const dragState = floatingPreviewDragRef.current;
+		if (!dragState || dragState.pointerId !== event.pointerId) return;
+		if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+			event.currentTarget.releasePointerCapture(event.pointerId);
+		}
+		floatingPreviewDragRef.current = null;
+		setIsFloatingPreviewDragging(false);
+	};
 
 	useEffect(() => {
 		if (activeTab !== "content") return;
@@ -255,17 +771,102 @@ export default function ResumeBuilderPage() {
 		return () => observer.disconnect();
 	}, [activeTab, contentSectionNav]);
 
-	if (resumeQuery.isLoading || !resume) {
+	if (
+		sessionQuery.isLoading ||
+		resumeQuery.isLoading ||
+		versionsQuery.isLoading ||
+		(draftMode && versionPreviewQuery.isLoading) ||
+		(hasSelectedVersionId && versionDetailQuery.isLoading)
+	) {
 		return <div className="app-card p-6">Loading resume builder...</div>;
 	}
+	if (!resume) return null;
 
-	const pdfDownloadHref = `${apiBaseUrl}/resumes/me/pdf?download=1`;
-	const pdfInlineHref = `${apiBaseUrl}/resumes/me/pdf?ts=${encodeURIComponent(
-		resume.updatedAt ?? String(Date.now()),
-	)}`;
+	const selectedVersionSummary = versionDetailQuery.data?.version ?? null;
+	const editingVersion = draftMode
+		? null
+		: hasSelectedVersionId
+			? selectedVersionSummary
+			: activeVersion;
+	const canManageSelectedDraftVersion = Boolean(!draftMode && editingVersion);
+	const editingVersionName = draftMode
+		? draftName || "Untitled Draft"
+		: editingVersion?.name ?? "Version";
+	const editingVersionIsLive = draftMode ? false : Boolean(editingVersion?.isActive);
+	const modeTitle = draftMode ? "Creating" : "Editing";
+	const modeBadgeLabel = draftMode
+		? "Draft (Unsaved)"
+		: editingVersionIsLive
+			? "Live"
+			: "Draft";
+
+	const openCreateVersionModal = () =>
+		setVersionToCreate({
+			name: "",
+			base: "latest",
+			error: "",
+		});
+
+	const handleCreateVersionConfirm = () => {
+		if (!versionToCreate) return;
+		const name = versionToCreate.name.trim();
+		if (!name) {
+			setVersionToCreate((current) =>
+				current ? { ...current, error: "Version name is required." } : current,
+			);
+			return;
+		}
+		createVersionMutation.mutate({
+			name,
+			base: versionToCreate.base,
+		});
+	};
+
+	const closePreview = () => {
+		if (openedFromDashboardPreview) {
+			navigate("/dashboard");
+			return;
+		}
+		setPreviewOpen(false);
+	};
+
+	const versionPdfPath = hasSelectedVersionId
+		? `/resumes/me/versions/${selectedVersionId}/pdf`
+		: "/resumes/me/pdf";
+	const pdfDownloadHref = `${apiBaseUrl}${versionPdfPath}?download=1`;
+	const pdfInlineVersion = resume.updatedAt ?? `${resume.templateKey}-${pdfPreviewNonce}`;
+	const pdfInlineHref = `${apiBaseUrl}${versionPdfPath}?v=${encodeURIComponent(
+		pdfInlineVersion,
+	)}&template=${encodeURIComponent(resume.templateKey)}&nonce=${pdfPreviewNonce}`;
 	const visibleSectionOrder = resume.layout.sectionOrder.filter((section) =>
 		section === "header" ? true : Boolean(resume.layout.visibility[section]),
 	);
+
+	const handleTemplateChange = (event: ChangeEvent<HTMLSelectElement>) => {
+		if (applyTemplateMutation.isPending) return;
+		const nextTemplateKey: ResumeTemplateKey =
+			event.target.value === "harvard_classic_v1" ? "harvard_classic_v1" : "ats_classic_v1";
+		if (resume.templateKey === nextTemplateKey) return;
+		const previousTemplateKey = resume.templateKey;
+		const nextResume: ResumeRecord = {
+			...resume,
+			templateKey: nextTemplateKey,
+		};
+		setResume(nextResume);
+		applyTemplateMutation.mutate(nextResume, {
+			onError: () => {
+				setResume((current) =>
+					current
+						? {
+								...current,
+								templateKey: previousTemplateKey,
+						  }
+						: current,
+				);
+				setToast({ type: "error", message: "Failed to apply PDF template." });
+			},
+		});
+	};
 
 	const renderInlineWarnings = (messages: string[]) => {
 		if (!messages.length) return null;
@@ -351,8 +952,105 @@ export default function ResumeBuilderPage() {
 		element.scrollIntoView({ behavior: "smooth", block: "center" });
 	};
 
+	const closeCreateModal = () => {
+		setCreateModal(null);
+		setCreateForm(makeCreateFormDefaults());
+	};
+
+	const openCreateModal = (modal: ResumeCreateModalState) => {
+		setCreateForm(makeCreateFormDefaults());
+		setCreateModal(modal);
+	};
+
+	const submitCreateModal = () => {
+		if (!createModal) return;
+		setResume((current) => {
+			if (!current) return current;
+			switch (createModal.kind) {
+				case "experience":
+					return {
+						...current,
+						content: {
+							...current.content,
+							experience: [
+								...current.content.experience,
+								{
+									id: makeId(),
+									role: createForm.experienceRole.trim(),
+									company: createForm.experienceCompany.trim(),
+									location: createForm.experienceLocation.trim(),
+									startDate: createForm.experienceStartDate.trim(),
+									endDate: createForm.experienceEndDate.trim(),
+									isCurrent: false,
+									bullets: parseTextareaLines(createForm.experienceBullets),
+								},
+							],
+						},
+					};
+				case "education":
+					return {
+						...current,
+						content: {
+							...current.content,
+							education: [
+								...current.content.education,
+								{
+									id: makeId(),
+									school: createForm.educationSchool.trim(),
+									degree: createForm.educationDegree.trim(),
+									location: createForm.educationLocation.trim(),
+									graduationDate: createForm.educationGraduationDate.trim(),
+									details: parseTextareaLines(createForm.educationDetails),
+								},
+							],
+						},
+					};
+				case "project":
+					return {
+						...current,
+						content: {
+							...current.content,
+							projects: [
+								...current.content.projects,
+								{
+									id: makeId(),
+									name: createForm.projectName.trim(),
+									description: createForm.projectDescription.trim(),
+									url: createForm.projectUrl.trim(),
+									highlights: parseTextareaLines(createForm.projectHighlights),
+								},
+							],
+						},
+					};
+				case "structured":
+					if (!createModal.sectionKey) return current;
+					return {
+						...current,
+						content: {
+							...current.content,
+							[createModal.sectionKey]: [
+								...(current.content[createModal.sectionKey] as ResumeStructuredListItem[]),
+								{
+									...createResumeListItem(),
+									title: createForm.structuredTitle.trim(),
+									subtitle: createForm.structuredSubtitle.trim(),
+									date: createForm.structuredDate.trim(),
+									location: createForm.structuredLocation.trim(),
+									details: parseTextareaLines(createForm.structuredDetails),
+									url: createForm.structuredUrl.trim(),
+								},
+							],
+						},
+					};
+				default:
+					return current;
+			}
+		});
+		closeCreateModal();
+	};
+
 	return (
-		<main className="space-y-5 pb-10">
+		<main className="builder-v2 overflow-x-hidden space-y-6 pb-20">
 			{toast ? (
 				<div className="fixed right-4 top-4 z-50">
 					<div
@@ -366,185 +1064,194 @@ export default function ResumeBuilderPage() {
 					</div>
 				</div>
 			) : null}
-			<Card className="bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-transparent shadow-none">
+			<Card className="v2-panel">
 				<CardHeader className="gap-3">
-					<div className="space-y-2">
-						<Badge variant="secondary" className="w-fit">
-							<FileText className="mr-1 size-3.5" />
-							Resume Builder
-						</Badge>
-						<CardTitle className="text-xl sm:text-2xl">Resume Builder</CardTitle>
+					<div className="space-y-1.5">
+						<div className="flex flex-wrap items-center gap-2">
+							<CardTitle className="text-2xl sm:text-3xl">
+								{modeTitle}: {editingVersionName}
+							</CardTitle>
+							<Badge
+								variant={editingVersionIsLive ? "secondary" : "outline"}
+								className={
+									editingVersionIsLive
+										? "border-primary/45 bg-primary/15 text-primary"
+										: undefined
+								}
+							>
+								{modeBadgeLabel}
+							</Badge>
+						</div>
 						<CardDescription>
-							ATS-first layout, dynamic sections, and server-rendered PDF export.
+							Edit structured resume content, tune section visibility, and validate against export rules in real time.
 						</CardDescription>
 					</div>
-					<CardAction className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+					<CardAction className="flex w-full flex-col items-start gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
 						<Button
 							type="button"
 							size="sm"
 							variant="outline"
-							className="h-9 w-full px-3 sm:w-auto"
+							className="inline-flex"
+							onClick={openCreateVersionModal}
+						>
+							New draft version
+						</Button>
+						{canManageSelectedDraftVersion ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								className="inline-flex"
+								onClick={() => setRenameDialogOpen(true)}
+							>
+								<Pencil className="size-4" />
+								Rename
+							</Button>
+						) : null}
+						{canManageSelectedDraftVersion ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								className="inline-flex text-destructive hover:text-destructive"
+								onClick={() => setDeleteDialogOpen(true)}
+								disabled={Boolean(editingVersion?.isActive)}
+							>
+								<Trash2 className="size-4" />
+								Delete
+							</Button>
+						) : null}
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							className="inline-flex"
 							onClick={() => setPreviewOpen(true)}
 						>
 							<Eye className="size-4" />
-							Quick Preview
+							Open Preview
 						</Button>
 						<Button
 							type="button"
 							size="sm"
-							className="h-9 w-full px-3 sm:w-auto"
+							className="inline-flex"
 							onClick={() => saveMutation.mutate()}
 							disabled={saveMutation.isPending}
 						>
 							<Save className="size-4" />
-							{saveMutation.isPending ? "Saving..." : "Save Resume"}
+							{saveMutation.isPending ? "Saving..." : "Save changes"}
 						</Button>
-						<a href={pdfDownloadHref} className="w-full sm:w-auto">
-							<Button
-								type="button"
-								size="sm"
-								variant="secondary"
-								className="h-9 w-full px-3 sm:w-auto"
-							>
+						<a href={pdfDownloadHref} className="inline-flex">
+							<Button type="button" size="sm" variant="secondary" className="inline-flex">
 								<Download className="size-4" />
 								Download PDF
 							</Button>
 						</a>
 					</CardAction>
 				</CardHeader>
-				<CardContent className="space-y-4 text-sm">
-					<div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-						<div className="rounded-md border border-dashed border-border/70 bg-muted/20 px-3 py-2">
-							<div className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-								Validation
-							</div>
-							<div className="flex flex-wrap gap-2">
-								<Badge variant={liveValidation?.errors.length ? "destructive" : "secondary"}>
-									Errors: {liveValidation?.errors.length ?? 0}
-								</Badge>
-								<Badge variant="outline">
-									Warnings: {liveValidation?.warnings.length ?? 0}
-								</Badge>
-								<Badge variant="outline">
-									Pages: {liveValidation?.estimatedPages ?? 1}
-								</Badge>
-							</div>
-						</div>
-						<div className="space-y-2">
-							<Label
-								htmlFor="resume-template-key"
-								className="text-xs font-medium uppercase tracking-wide text-muted-foreground"
-							>
-								PDF Template
-							</Label>
-							<select
-								id="resume-template-key"
-								className="h-9 w-full rounded-lg border border-border/70 bg-background/80 px-3 text-sm"
-								value={resume.templateKey}
-								onChange={(event) =>
-									setResume((current) =>
-										current
-											? {
-													...current,
-													templateKey:
-														event.target.value === "harvard_classic_v1"
-															? "harvard_classic_v1"
-															: "ats_classic_v1",
-											  }
-											: current,
-									)
-								}
-							>
-								{resumeTemplateOptions.map((option) => (
-									<option key={option.key} value={option.key}>
-										{option.label}
-									</option>
-								))}
-							</select>
-						</div>
-					</div>
-				</CardContent>
 			</Card>
+			{draftMode ? (
+				<div className="rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 text-sm text-amber-800 dark:text-amber-200">
+					You are creating a draft. This is not public yet until you save and set a version live.
+				</div>
+			) : editingVersion && !editingVersionIsLive ? (
+				<div className="flex flex-col items-start justify-between gap-2 rounded-md border border-amber-500/35 bg-amber-500/10 px-3 py-2 sm:flex-row sm:flex-wrap sm:items-center">
+					<div className="text-sm text-amber-800 dark:text-amber-200">
+						You are editing a draft version. Public resume PDF still shows the current live version.
+					</div>
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						className="w-auto"
+						onClick={() => activateVersionMutation.mutate(editingVersion.id)}
+						disabled={activateVersionMutation.isPending}
+					>
+						{activateVersionMutation.isPending ? "Setting live..." : "Set this version live"}
+					</Button>
+				</div>
+			) : null}
 
-			<Tabs value={activeTab} onValueChange={setActiveTab} className="gap-3">
-				<TabsList className="!h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl bg-muted/45 p-1">
-					<TabsTrigger value="content" className="h-9 flex-none rounded-lg px-3">
+			<Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
+				<TabsList className="!h-auto w-full flex-wrap justify-start gap-1">
+					<TabsTrigger value="content" className="h-9 flex-none px-4">
 						Content
 					</TabsTrigger>
-					<TabsTrigger value="layout" className="h-9 flex-none rounded-lg px-3">
+					<TabsTrigger value="layout" className="h-9 flex-none px-4">
 						Layout
 					</TabsTrigger>
-					<TabsTrigger value="preview" className="h-9 flex-none rounded-lg px-3">
+					<TabsTrigger value="preview" className="h-9 flex-none px-4">
 						Preview
 					</TabsTrigger>
 				</TabsList>
 
-					<TabsContent value="content" className="space-y-4">
-						<div ref={navShellRef} className="flex flex-col gap-4 md:flex-row md:items-start">
-							<aside ref={navAsideRef} className="md:w-[220px] md:shrink-0">
-								<div
-									style={pinnedStyle}
-								>
-									<div className="rounded-lg border border-border/70 bg-muted/20 p-2 md:max-h-[calc(100vh-7.5rem)] md:overflow-y-auto">
-									<div className="px-2 pb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-										Content sections
+				<TabsContent value="content" className="min-w-0 space-y-4">
+					<div
+						ref={navShellRef}
+						className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)] xl:items-start"
+					>
+						<aside ref={navAsideRef} className="min-w-0 xl:shrink-0">
+							<div style={pinnedStyle}>
+								<div className="v2-panel p-2 xl:max-h-[calc(100vh-7.5rem)] xl:overflow-y-auto">
+									<div className="px-2 pb-2 text-xs font-semibold tracking-[0.14em] text-muted-foreground">
+										CONTENT SECTIONS
 									</div>
-									<div className="flex gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-visible">
-									{contentSectionNav.map((section) => (
-										<Button
-											key={section.id}
-											type="button"
-											variant="ghost"
-											size="sm"
-											onClick={() => scrollToContentSection(section.id)}
-											className={
-												activeContentSection === section.id
-													? "justify-start whitespace-nowrap bg-emerald-500/12 text-emerald-700 ring-1 ring-emerald-500/35 dark:text-emerald-300"
-													: "justify-start whitespace-nowrap"
-											}
-										>
-											{section.label}
-										</Button>
+										<div className="flex min-w-0 flex-wrap gap-1 pb-1 xl:flex-col xl:flex-nowrap">
+										{contentSectionNav.map((section) => (
+											<Button
+												key={section.id}
+												type="button"
+												variant="ghost"
+												size="sm"
+												onClick={() => scrollToContentSection(section.id)}
+												className={
+													activeContentSection === section.id
+														? "justify-start whitespace-nowrap bg-primary text-primary-foreground"
+														: "justify-start whitespace-nowrap"
+												}
+											>
+												{section.label}
+											</Button>
 										))}
 									</div>
 								</div>
-								</div>
-							</aside>
+							</div>
+						</aside>
 
-							<div className="min-w-0 flex-1 space-y-4 pb-24">
+						<div className="min-w-0 space-y-4 pb-24">
 					<Card id="resume-content-header" className={contentSectionCardClassName}>
 						<CardHeader>
 							<CardTitle className="text-lg">Header</CardTitle>
 						</CardHeader>
 						<CardContent className="grid gap-3 md:grid-cols-2">
-							<div>
-								<Label>Full name</Label>
-								<Input
-									value={resume.content.header.fullName}
-									onChange={(event) => setHeaderField("fullName", event.target.value)}
-								/>
-							</div>
-							<div>
-								<Label>Headline</Label>
-								<Input
-									value={resume.content.header.headline}
-									onChange={(event) => setHeaderField("headline", event.target.value)}
-								/>
-							</div>
-							<div>
-								<Label>Email</Label>
-								<Input
-									value={resume.content.header.email}
-									onChange={(event) => setHeaderField("email", event.target.value)}
-								/>
-							</div>
-							<div>
-								<Label>Phone</Label>
-								<Input
-									value={resume.content.header.phone}
-									onChange={(event) => setHeaderField("phone", event.target.value)}
-								/>
-							</div>
+								<div className="space-y-2">
+									<Label>Full name</Label>
+									<Input
+										value={resume.content.header.fullName}
+										onChange={(event) => setHeaderField("fullName", event.target.value)}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label>Headline</Label>
+									<Input
+										value={resume.content.header.headline}
+										onChange={(event) => setHeaderField("headline", event.target.value)}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label>Email</Label>
+									<Input
+										value={resume.content.header.email}
+										onChange={(event) => setHeaderField("email", event.target.value)}
+									/>
+								</div>
+								<div className="space-y-2">
+									<Label>Phone</Label>
+									<Input
+										value={resume.content.header.phone}
+										onChange={(event) => setHeaderField("phone", event.target.value)}
+									/>
+								</div>
 						</CardContent>
 					</Card>
 
@@ -610,29 +1317,12 @@ export default function ResumeBuilderPage() {
 								type="button"
 								variant="outline"
 								onClick={() =>
-									setResume((current) =>
-										current
-											? {
-													...current,
-													content: {
-														...current.content,
-														experience: [
-															...current.content.experience,
-															{
-																id: makeId(),
-																role: "",
-																company: "",
-																location: "",
-																startDate: "",
-																endDate: "",
-																isCurrent: false,
-																bullets: [""],
-															},
-														],
-													},
-											  }
-											: current,
-									)
+									openCreateModal({
+										kind: "experience",
+										title: "Add experience",
+										subtitle: "Create a role entry before editing details inline.",
+										submitLabel: "Add role",
+									})
 								}
 							>
 								Add role
@@ -641,7 +1331,7 @@ export default function ResumeBuilderPage() {
 						<CardContent className="space-y-4">
 							{resume.content.experience.map((item, index) => (
 								<div key={item.id} className={itemBlockClassName}>
-									<div className="flex items-center justify-between">
+									<div className="flex flex-wrap items-center justify-between gap-2">
 										<div className="text-sm font-medium">Role {index + 1}</div>
 										<Button
 											type="button"
@@ -794,27 +1484,12 @@ export default function ResumeBuilderPage() {
 								type="button"
 								variant="outline"
 								onClick={() =>
-									setResume((current) =>
-										current
-											? {
-													...current,
-													content: {
-														...current.content,
-														education: [
-															...current.content.education,
-															{
-																id: makeId(),
-																school: "",
-																degree: "",
-																location: "",
-																graduationDate: "",
-																details: [],
-															},
-														],
-													},
-											  }
-											: current,
-									)
+									openCreateModal({
+										kind: "education",
+										title: "Add education",
+										subtitle: "Start with the core details, then refine in the editor.",
+										submitLabel: "Add education",
+									})
 								}
 							>
 								Add education
@@ -823,7 +1498,7 @@ export default function ResumeBuilderPage() {
 						<CardContent className="space-y-3">
 							{resume.content.education.map((item, index) => (
 								<div key={item.id} className={itemBlockClassName}>
-									<div className="flex items-center justify-between">
+									<div className="flex flex-wrap items-center justify-between gap-2">
 										<div className="text-sm font-medium">Education {index + 1}</div>
 										<Button
 											type="button"
@@ -903,26 +1578,12 @@ export default function ResumeBuilderPage() {
 								type="button"
 								variant="outline"
 								onClick={() =>
-									setResume((current) =>
-										current
-											? {
-													...current,
-													content: {
-														...current.content,
-														projects: [
-															...current.content.projects,
-															{
-																id: makeId(),
-																name: "",
-																description: "",
-																url: "",
-																highlights: [],
-															},
-														],
-													},
-											  }
-											: current,
-									)
+									openCreateModal({
+										kind: "project",
+										title: "Add project",
+										subtitle: "Capture the project basics before polishing content.",
+										submitLabel: "Add project",
+									})
 								}
 							>
 								Add project
@@ -931,7 +1592,7 @@ export default function ResumeBuilderPage() {
 						<CardContent className="space-y-3">
 							{resume.content.projects.map((item, index) => (
 								<div key={item.id} className={itemBlockClassName}>
-									<div className="flex items-center justify-between">
+									<div className="flex flex-wrap items-center justify-between gap-2">
 										<div className="text-sm font-medium">Project {index + 1}</div>
 										<Button
 											type="button"
@@ -1044,20 +1705,13 @@ export default function ResumeBuilderPage() {
 									type="button"
 									variant="outline"
 									onClick={() =>
-										setResume((current) =>
-											current
-												? {
-														...current,
-														content: {
-															...current.content,
-															[section.key]: [
-																...(current.content[section.key] as ResumeStructuredListItem[]),
-																createResumeListItem(),
-															],
-														},
-												  }
-												: current,
-										)
+										openCreateModal({
+											kind: "structured",
+											sectionKey: section.key,
+											title: `Add ${section.title} item`,
+											subtitle: "Use this modal to create a structured item.",
+											submitLabel: "Add item",
+										})
 									}
 								>
 									Add item
@@ -1066,7 +1720,7 @@ export default function ResumeBuilderPage() {
 							<CardContent className="space-y-3">
 								{(resume.content[section.key] as ResumeStructuredListItem[]).map((item, index) => (
 									<div key={item.id} className={itemBlockClassName}>
-										<div className="flex items-center justify-between">
+										<div className="flex flex-wrap items-center justify-between gap-2">
 											<div className="text-sm font-medium">Item {index + 1}</div>
 											<Button
 												type="button"
@@ -1146,7 +1800,7 @@ export default function ResumeBuilderPage() {
 								return (
 									<div
 										key={section.key}
-										className="flex items-center justify-between rounded-lg border border-border/70 bg-muted/20 p-3"
+										className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border/70 bg-muted/20 p-3"
 									>
 										<div className="flex items-center gap-2">
 											<Checkbox
@@ -1246,43 +1900,99 @@ export default function ResumeBuilderPage() {
 
 				<TabsContent value="preview" className="space-y-4">
 					<Card className={editorCardClassName}>
-						<CardHeader>
-							<CardTitle className="text-lg">Validation summary</CardTitle>
-						</CardHeader>
-						<CardContent className="space-y-2">
-							<div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
-								Warnings are advisory only. You can still create/save your resume.
-								Only hard errors block PDF export.
+						<button
+							type="button"
+							className="flex w-full items-center gap-4 px-5 py-3 text-left"
+							onClick={() => setIsValidationSummaryExpanded((current) => !current)}
+							aria-expanded={isValidationSummaryExpanded}
+							aria-controls="resume-validation-summary-details"
+						>
+							<span className="text-lg font-medium">Validation summary</span>
+							<div className="ml-auto flex items-center gap-3 text-sm">
+								<span
+									className={
+										liveValidation?.errors.length
+											? "whitespace-nowrap font-medium text-rose-600"
+											: "whitespace-nowrap font-medium text-emerald-600"
+									}
+								>
+									Errors: {liveValidation?.errors.length ?? 0}
+								</span>
+								<span
+									className={
+										liveValidation?.warnings.length
+											? "whitespace-nowrap font-medium text-amber-600"
+											: "whitespace-nowrap font-medium text-emerald-600"
+									}
+								>
+									Warnings: {liveValidation?.warnings.length ?? 0}
+								</span>
 							</div>
-							<div className="text-sm font-medium">Errors</div>
-							{liveValidation?.errors.length ? (
-								<ul className="list-disc pl-5 text-sm text-rose-600 space-y-1">
-									{liveValidation.errors.map((error) => (
-										<li key={error.code + error.message}>{error.message}</li>
-									))}
-								</ul>
-							) : (
-								<div className="text-sm text-emerald-600">No hard errors.</div>
-							)}
-							<div className="pt-2 text-sm font-medium">Warnings</div>
-							{liveValidation?.warnings.length ? (
-								<ul className="list-disc pl-5 text-sm text-amber-600 space-y-1">
-									{liveValidation.warnings.map((warning) => (
-										<li key={warning.code + warning.message}>{warning.message}</li>
-									))}
-								</ul>
-							) : (
-								<div className="text-sm text-emerald-600">No warnings.</div>
-							)}
-						</CardContent>
+							<ChevronDown
+								className={`size-4 text-muted-foreground transition-transform ${
+									isValidationSummaryExpanded ? "rotate-180" : ""
+								}`}
+							/>
+						</button>
+						{isValidationSummaryExpanded ? (
+							<CardContent id="resume-validation-summary-details" className="space-y-2 pt-0">
+								<div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+									Warnings are advisory only. You can still create/save your resume.
+									Only hard errors block PDF export.
+								</div>
+								<div className="text-sm font-medium">Errors</div>
+								{liveValidation?.errors.length ? (
+									<ul className="list-disc space-y-1 pl-5 text-sm text-rose-600">
+										{liveValidation.errors.map((error) => (
+											<li key={error.code + error.message}>{error.message}</li>
+										))}
+									</ul>
+								) : (
+									<div className="text-sm text-emerald-600">No hard errors.</div>
+								)}
+								<div className="pt-2 text-sm font-medium">Warnings</div>
+								{liveValidation?.warnings.length ? (
+									<ul className="list-disc space-y-1 pl-5 text-sm text-amber-600">
+										{liveValidation.warnings.map((warning) => (
+											<li key={warning.code + warning.message}>{warning.message}</li>
+										))}
+									</ul>
+								) : (
+									<div className="text-sm text-emerald-600">No warnings.</div>
+								)}
+							</CardContent>
+						) : null}
 					</Card>
 
 					<Card className={editorCardClassName}>
-						<CardHeader>
-							<CardTitle className="text-lg">PDF Preview (Actual Render)</CardTitle>
-							<CardDescription>
-								This is the real server-generated PDF output.
-							</CardDescription>
+						<CardHeader className="gap-3">
+							<div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+								<div>
+									<CardTitle className="text-lg">PDF Preview (Actual Render)</CardTitle>
+									<CardDescription>
+										This is the real server-generated PDF output.
+									</CardDescription>
+								</div>
+								<div className="w-full space-y-2 sm:w-[320px]">
+									<Label htmlFor="resume-preview-template-key">PDF Template</Label>
+									<select
+										id="resume-preview-template-key"
+										className="h-10 w-full rounded-xl border border-border/70 bg-background/85 px-3 text-sm"
+										value={resume.templateKey}
+										onChange={handleTemplateChange}
+										disabled={applyTemplateMutation.isPending}
+									>
+										{resumeTemplateOptions.map((option) => (
+											<option key={option.key} value={option.key}>
+												{option.label}
+											</option>
+										))}
+									</select>
+									{applyTemplateMutation.isPending ? (
+										<div className="text-xs text-muted-foreground">Applying template...</div>
+									) : null}
+								</div>
+							</div>
 						</CardHeader>
 						<CardContent className="space-y-3 text-sm">
 							<div className="rounded-md border overflow-hidden">
@@ -1292,102 +2002,208 @@ export default function ResumeBuilderPage() {
 									className="h-[70dvh] min-h-[440px] w-full bg-white sm:h-[820px]"
 								/>
 							</div>
-							<a
-								href={`${apiBaseUrl}/resumes/me/pdf`}
-								target="_blank"
-								rel="noreferrer noopener"
-								className="text-xs underline underline-offset-2"
-							>
-								Open PDF in new tab
-							</a>
-							<div className="font-semibold text-lg">{resume.content.header.fullName}</div>
-							<div className="text-muted-foreground">{resume.content.header.headline}</div>
-							<div>
-								<div className="font-semibold">Section order</div>
-								<div className="text-muted-foreground">
-									{visibleSectionOrder
-										.map((entry) => sectionTitleByKey[entry])
-										.join(" → ")}
+							<div className="space-y-4 rounded-lg border border-border/70 bg-muted/15 p-4 sm:p-5">
+								<div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+									<div className="space-y-1">
+										<div className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+											Preview content map
+										</div>
+										<div className="text-sm text-muted-foreground">
+											Structured content currently rendered in the PDF preview.
+										</div>
+									</div>
+									<a
+										href={`${apiBaseUrl}${versionPdfPath}`}
+										target="_blank"
+										rel="noreferrer noopener"
+										className="text-xs underline underline-offset-2"
+									>
+										Open PDF in new tab
+									</a>
+								</div>
+								<div className="space-y-4">
+									<div className="space-y-1">
+										<div className="font-semibold text-lg">{resume.content.header.fullName}</div>
+										<div className="text-muted-foreground">{resume.content.header.headline}</div>
+									</div>
+									<div>
+										<div className="font-semibold">Section order</div>
+										<div className="text-muted-foreground">
+											{visibleSectionOrder
+												.map((entry) => sectionTitleByKey[entry])
+												.join(" → ")}
+										</div>
+									</div>
+
+									{visibleSectionOrder.includes("summary") && resume.content.summary ? (
+										<div className="space-y-1">
+											<div className="font-semibold">Summary</div>
+											<div>{resume.content.summary}</div>
+										</div>
+									) : null}
+
+									{visibleSectionOrder.includes("experience") &&
+									resume.content.experience.length ? (
+										<div className="space-y-2">
+											<div className="font-semibold">Experience</div>
+											{resume.content.experience.map((item) => (
+												<div key={item.id} className="rounded-md border p-2">
+													<div className="font-medium">
+														{[item.role, item.company].filter(Boolean).join(" · ")}
+													</div>
+													<div className="text-xs text-muted-foreground">
+														{[item.startDate, item.endDate].filter(Boolean).join(" — ")}
+													</div>
+													{item.bullets.length ? (
+														<ul className="mt-1 list-disc space-y-1 pl-4">
+															{item.bullets.map((bullet, index) => (
+																<li key={`${item.id}-bullet-${index}`}>{bullet}</li>
+															))}
+														</ul>
+													) : null}
+												</div>
+											))}
+										</div>
+									) : null}
+
+									{visibleSectionOrder.includes("education") &&
+									resume.content.education.length ? (
+										<div className="space-y-2">
+											<div className="font-semibold">Education</div>
+											{resume.content.education.map((item) => (
+												<div key={item.id} className="rounded-md border p-2">
+													<div className="font-medium">
+														{[item.degree, item.school].filter(Boolean).join(" · ")}
+													</div>
+												</div>
+											))}
+										</div>
+									) : null}
+
+									{visibleSectionOrder.includes("skills") &&
+									resume.content.skills.length ? (
+										<div className="space-y-1">
+											<div className="font-semibold">Skills</div>
+											<div>{resume.content.skills.join(", ")}</div>
+										</div>
+									) : null}
+
+									{visibleSectionOrder.includes("projects") &&
+									resume.content.projects.length ? (
+										<div className="space-y-2">
+											<div className="font-semibold">Projects</div>
+											{resume.content.projects.map((item) => (
+												<div key={item.id} className="rounded-md border p-2">
+													<div className="font-medium">{item.name}</div>
+													{item.description ? <div>{item.description}</div> : null}
+												</div>
+											))}
+										</div>
+									) : null}
+
+									{visibleSectionOrder.includes("languages") &&
+									resume.content.languages.length ? (
+										<div className="space-y-1">
+											<div className="font-semibold">Languages</div>
+											<div>{resume.content.languages.join(", ")}</div>
+										</div>
+									) : null}
 								</div>
 							</div>
-
-							{visibleSectionOrder.includes("summary") && resume.content.summary ? (
-								<div className="space-y-1">
-									<div className="font-semibold">Summary</div>
-									<div>{resume.content.summary}</div>
-								</div>
-							) : null}
-
-							{visibleSectionOrder.includes("experience") &&
-							resume.content.experience.length ? (
-								<div className="space-y-2">
-									<div className="font-semibold">Experience</div>
-									{resume.content.experience.map((item) => (
-										<div key={item.id} className="rounded-md border p-2">
-											<div className="font-medium">
-												{[item.role, item.company].filter(Boolean).join(" · ")}
-											</div>
-											<div className="text-xs text-muted-foreground">
-												{[item.startDate, item.endDate].filter(Boolean).join(" — ")}
-											</div>
-											{item.bullets.length ? (
-												<ul className="list-disc pl-4 mt-1 space-y-1">
-													{item.bullets.map((bullet, index) => (
-														<li key={`${item.id}-bullet-${index}`}>{bullet}</li>
-													))}
-												</ul>
-											) : null}
-										</div>
-									))}
-								</div>
-							) : null}
-
-							{visibleSectionOrder.includes("education") &&
-							resume.content.education.length ? (
-								<div className="space-y-2">
-									<div className="font-semibold">Education</div>
-									{resume.content.education.map((item) => (
-										<div key={item.id} className="rounded-md border p-2">
-											<div className="font-medium">
-												{[item.degree, item.school].filter(Boolean).join(" · ")}
-											</div>
-										</div>
-									))}
-								</div>
-							) : null}
-
-							{visibleSectionOrder.includes("skills") &&
-							resume.content.skills.length ? (
-								<div className="space-y-1">
-									<div className="font-semibold">Skills</div>
-									<div>{resume.content.skills.join(", ")}</div>
-								</div>
-							) : null}
-
-							{visibleSectionOrder.includes("projects") &&
-							resume.content.projects.length ? (
-								<div className="space-y-2">
-									<div className="font-semibold">Projects</div>
-									{resume.content.projects.map((item) => (
-										<div key={item.id} className="rounded-md border p-2">
-											<div className="font-medium">{item.name}</div>
-											{item.description ? <div>{item.description}</div> : null}
-										</div>
-									))}
-								</div>
-							) : null}
-
-							{visibleSectionOrder.includes("languages") &&
-							resume.content.languages.length ? (
-								<div className="space-y-1">
-									<div className="font-semibold">Languages</div>
-									<div>{resume.content.languages.join(", ")}</div>
-								</div>
-							) : null}
 						</CardContent>
 					</Card>
 				</TabsContent>
 			</Tabs>
+
+			{!previewOpen ? (
+				<div
+					className="pointer-events-none fixed z-30 hidden xl:block"
+					style={
+						isFloatingPreviewMinimized
+							? {
+									right: "1rem",
+									bottom: "1rem",
+								}
+							: floatingPreviewPosition
+								? {
+										left: `${floatingPreviewPosition.x}px`,
+										top: `${floatingPreviewPosition.y}px`,
+									}
+								: {
+										left: `${FLOATING_PREVIEW_MIN_OFFSET}px`,
+										top: `${FLOATING_PREVIEW_MIN_TOP}px`,
+								}
+					}
+				>
+					{isFloatingPreviewMinimized ? (
+						<div className="pointer-events-auto">
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								className="w-auto"
+								onClick={() => setIsFloatingPreviewMinimized(false)}
+							>
+								<Eye className="size-4" />
+								Show preview
+							</Button>
+						</div>
+					) : (
+						<div className="pointer-events-auto">
+							<div
+								className={`v2-preview-frame w-[18rem] overflow-hidden p-2.5 select-none ${
+									isFloatingPreviewDragging ? "cursor-grabbing" : "cursor-grab"
+								}`}
+								onPointerDown={handleFloatingPreviewPointerDown}
+								onPointerMove={handleFloatingPreviewPointerMove}
+								onPointerUp={stopFloatingPreviewDrag}
+								onPointerCancel={stopFloatingPreviewDrag}
+							>
+								<div className="mb-2 flex items-center justify-between gap-2 px-1">
+									<div>
+										<div className="text-[11px] font-semibold tracking-[0.14em] text-muted-foreground">
+											LIVE PDF PREVIEW
+										</div>
+										<div className="text-xs text-muted-foreground">Drag to move</div>
+									</div>
+									<div className="flex items-center gap-1">
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											className="px-2"
+											onClick={() => setIsFloatingPreviewMinimized(true)}
+											aria-label="Minimize preview"
+											title="Minimize preview"
+										>
+											<EyeOff className="size-4" />
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											onClick={() => setPreviewOpen(true)}
+										>
+											Fullscreen
+										</Button>
+									</div>
+								</div>
+								<div className="h-[13rem] overflow-y-auto overflow-x-hidden overscroll-contain rounded-lg border border-border/70 bg-background/85 p-2">
+									<div className="origin-top-left scale-[0.255]">
+										<div className="w-[980px] bg-white">
+											<iframe
+												title="Resume PDF Floating Preview"
+												src={pdfInlineHref}
+												className="pointer-events-none h-[1280px] w-full bg-white"
+											/>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					)}
+				</div>
+			) : null}
 
 			{previewOpen ? (
 				<div className="fixed inset-0 z-50 bg-black/60 p-2 sm:p-6">
@@ -1403,7 +2219,7 @@ export default function ResumeBuilderPage() {
 								type="button"
 								variant="outline"
 								size="sm"
-								onClick={() => setPreviewOpen(false)}
+								onClick={closePreview}
 							>
 								Close
 							</Button>
@@ -1418,6 +2234,423 @@ export default function ResumeBuilderPage() {
 							</div>
 						</div>
 					</div>
+				</div>
+			) : null}
+
+			{versionToCreate ? (
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+					<Card className="flex max-h-[85vh] w-full max-w-lg flex-col border-border/70 shadow-xl">
+						<CardHeader>
+							<CardTitle className="text-lg">Create new version</CardTitle>
+							<CardDescription>
+								Choose the base source, then set the version name.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="min-h-0 space-y-4 overflow-y-auto">
+							<div className="space-y-2">
+								<div className="text-sm font-medium">Version name</div>
+								<Input
+									value={versionToCreate.name}
+									onChange={(event) =>
+										setVersionToCreate((current) =>
+											current
+												? { ...current, name: event.target.value, error: "" }
+												: current,
+										)
+									}
+									maxLength={120}
+									placeholder="e.g. Product Role Variant"
+								/>
+							</div>
+							<div className="space-y-2">
+								<div className="text-sm font-medium">Base this version on</div>
+								<div className="space-y-2">
+									{versionBaseOptions.map((option) => (
+										<button
+											key={option.value}
+											type="button"
+											className={`w-full rounded-lg border px-3 py-2 text-left transition-colors ${
+												versionToCreate.base === option.value
+													? "border-emerald-500/50 bg-emerald-500/10"
+													: "border-border hover:bg-muted/40"
+											}`}
+											onClick={() =>
+												setVersionToCreate((current) =>
+													current ? { ...current, base: option.value } : current,
+												)
+											}
+										>
+											<div className="text-sm font-medium">{option.label}</div>
+											<div className="text-xs text-muted-foreground">
+												{option.description}
+											</div>
+										</button>
+									))}
+								</div>
+							</div>
+							{versionToCreate.error ? (
+								<div className="text-sm text-destructive">{versionToCreate.error}</div>
+							) : null}
+							<div className="flex justify-end gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setVersionToCreate(null)}
+									disabled={createVersionMutation.isPending}
+								>
+									Cancel
+								</Button>
+								<Button
+									type="button"
+									onClick={handleCreateVersionConfirm}
+									disabled={createVersionMutation.isPending}
+								>
+									{createVersionMutation.isPending ? "Creating..." : "Create version"}
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+			) : null}
+
+			{renameDialogOpen && canManageSelectedDraftVersion ? (
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+					<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
+						<CardHeader>
+							<CardTitle className="text-lg">Rename version</CardTitle>
+							<CardDescription>Update the version name.</CardDescription>
+						</CardHeader>
+						<CardContent className="min-h-0 space-y-3 overflow-y-auto">
+							<Input
+								value={renameValue}
+								onChange={(event) => setRenameValue(event.target.value)}
+								maxLength={120}
+								placeholder="Version name"
+							/>
+							<div className="flex justify-end gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setRenameDialogOpen(false)}
+									disabled={renameVersionMutation.isPending}
+								>
+									Cancel
+								</Button>
+								<Button
+									type="button"
+									onClick={() => {
+										const nextName = renameValue.trim();
+										if (!nextName) {
+											setToast({
+												type: "error",
+												message: "Version name is required.",
+											});
+											return;
+										}
+										renameVersionMutation.mutate(nextName);
+									}}
+									disabled={renameVersionMutation.isPending}
+								>
+									{renameVersionMutation.isPending ? "Saving..." : "Save name"}
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+			) : null}
+
+			{deleteDialogOpen && canManageSelectedDraftVersion ? (
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+					<Card className="flex max-h-[85vh] w-full max-w-md flex-col border-border/70 shadow-xl">
+						<CardHeader>
+							<CardTitle className="text-lg">Delete version?</CardTitle>
+							<CardDescription>
+								Delete this version? This cannot be undone.
+							</CardDescription>
+						</CardHeader>
+						<CardContent className="min-h-0 overflow-y-auto">
+							<div className="flex justify-end gap-2">
+								<Button
+									type="button"
+									variant="outline"
+									onClick={() => setDeleteDialogOpen(false)}
+									disabled={deleteVersionMutation.isPending}
+								>
+									Cancel
+								</Button>
+								<Button
+									type="button"
+									variant="destructive"
+									onClick={() => deleteVersionMutation.mutate()}
+									disabled={deleteVersionMutation.isPending}
+								>
+									{deleteVersionMutation.isPending ? "Deleting..." : "Delete"}
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
+				</div>
+			) : null}
+
+			{createModal ? (
+				<div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">
+					<Card className="flex max-h-[88vh] w-full max-w-lg flex-col border-border/70 shadow-xl">
+						<CardHeader>
+							<CardTitle className="text-lg">{createModal.title}</CardTitle>
+							<CardDescription>{createModal.subtitle}</CardDescription>
+						</CardHeader>
+						<CardContent className="min-h-0 space-y-3 overflow-y-auto text-sm">
+							{createModal.kind === "experience" ? (
+								<>
+									<div className="grid gap-2 sm:grid-cols-2">
+										<Input
+											placeholder="Role"
+											value={createForm.experienceRole}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													experienceRole: event.target.value,
+												}))
+											}
+										/>
+										<Input
+											placeholder="Company"
+											value={createForm.experienceCompany}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													experienceCompany: event.target.value,
+												}))
+											}
+										/>
+										<Input
+											placeholder="Location"
+											value={createForm.experienceLocation}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													experienceLocation: event.target.value,
+												}))
+											}
+										/>
+										<Input
+											placeholder="Start date"
+											value={createForm.experienceStartDate}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													experienceStartDate: event.target.value,
+												}))
+											}
+										/>
+									</div>
+									<Input
+										placeholder="End date"
+										value={createForm.experienceEndDate}
+										onChange={(event) =>
+											setCreateForm((current) => ({
+												...current,
+												experienceEndDate: event.target.value,
+											}))
+										}
+									/>
+									<Textarea
+										rows={4}
+										placeholder="Bullets (one per line)"
+										value={createForm.experienceBullets}
+										onChange={(event) =>
+											setCreateForm((current) => ({
+												...current,
+												experienceBullets: event.target.value,
+											}))
+										}
+									/>
+								</>
+							) : null}
+
+							{createModal.kind === "education" ? (
+								<>
+									<div className="grid gap-2 sm:grid-cols-2">
+										<Input
+											placeholder="Degree"
+											value={createForm.educationDegree}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													educationDegree: event.target.value,
+												}))
+											}
+										/>
+										<Input
+											placeholder="School"
+											value={createForm.educationSchool}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													educationSchool: event.target.value,
+												}))
+											}
+										/>
+										<Input
+											placeholder="Location"
+											value={createForm.educationLocation}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													educationLocation: event.target.value,
+												}))
+											}
+										/>
+										<Input
+											placeholder="Graduation date"
+											value={createForm.educationGraduationDate}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													educationGraduationDate: event.target.value,
+												}))
+											}
+										/>
+									</div>
+									<Textarea
+										rows={3}
+										placeholder="Details (one per line)"
+										value={createForm.educationDetails}
+										onChange={(event) =>
+											setCreateForm((current) => ({
+												...current,
+												educationDetails: event.target.value,
+											}))
+										}
+									/>
+								</>
+							) : null}
+
+							{createModal.kind === "project" ? (
+								<>
+									<Input
+										placeholder="Project name"
+										value={createForm.projectName}
+										onChange={(event) =>
+											setCreateForm((current) => ({
+												...current,
+												projectName: event.target.value,
+											}))
+										}
+									/>
+									<Textarea
+										rows={3}
+										placeholder="Description"
+										value={createForm.projectDescription}
+										onChange={(event) =>
+											setCreateForm((current) => ({
+												...current,
+												projectDescription: event.target.value,
+											}))
+										}
+									/>
+									<Input
+										placeholder="Project URL"
+										value={createForm.projectUrl}
+										onChange={(event) =>
+											setCreateForm((current) => ({
+												...current,
+												projectUrl: event.target.value,
+											}))
+										}
+									/>
+									<Textarea
+										rows={3}
+										placeholder="Highlights (one per line)"
+										value={createForm.projectHighlights}
+										onChange={(event) =>
+											setCreateForm((current) => ({
+												...current,
+												projectHighlights: event.target.value,
+											}))
+										}
+									/>
+								</>
+							) : null}
+
+							{createModal.kind === "structured" ? (
+								<>
+									<div className="grid gap-2 sm:grid-cols-2">
+										<Input
+											placeholder="Title"
+											value={createForm.structuredTitle}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													structuredTitle: event.target.value,
+												}))
+											}
+										/>
+										<Input
+											placeholder="Subtitle"
+											value={createForm.structuredSubtitle}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													structuredSubtitle: event.target.value,
+												}))
+											}
+										/>
+										<Input
+											placeholder="Date"
+											value={createForm.structuredDate}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													structuredDate: event.target.value,
+												}))
+											}
+										/>
+										<Input
+											placeholder="Location"
+											value={createForm.structuredLocation}
+											onChange={(event) =>
+												setCreateForm((current) => ({
+													...current,
+													structuredLocation: event.target.value,
+												}))
+											}
+										/>
+									</div>
+									<Input
+										placeholder="URL"
+										value={createForm.structuredUrl}
+										onChange={(event) =>
+											setCreateForm((current) => ({
+												...current,
+												structuredUrl: event.target.value,
+											}))
+										}
+									/>
+									<Textarea
+										rows={3}
+										placeholder="Details (one per line)"
+										value={createForm.structuredDetails}
+										onChange={(event) =>
+											setCreateForm((current) => ({
+												...current,
+												structuredDetails: event.target.value,
+											}))
+										}
+									/>
+								</>
+							) : null}
+
+							<div className="flex justify-end gap-2 pt-2">
+								<Button type="button" variant="outline" onClick={closeCreateModal}>
+									Cancel
+								</Button>
+								<Button type="button" onClick={submitCreateModal}>
+									{createModal.submitLabel}
+								</Button>
+							</div>
+						</CardContent>
+					</Card>
 				</div>
 			) : null}
 

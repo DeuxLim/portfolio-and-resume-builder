@@ -5,7 +5,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/geist";
 
 /* Tailwind v4 default dark mode is media-based; make `dark:` respond to `.dark` class. */
 @custom-variant dark (&:where(.dark, .dark *));
@@ -536,7 +535,7 @@
 
 @theme inline {
 	--font-heading: var(--font-sans);
-	--font-sans: 'Geist Variable', sans-serif;
+	--font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, "Noto Sans";
 	--color-sidebar-ring: var(--sidebar-ring);
 	--color-sidebar-border: var(--sidebar-border);
 	--color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -644,4 +643,171 @@
 	--sidebar-accent-foreground: oklch(0.985 0 0);
 	--sidebar-border: oklch(1 0 0 / 10%);
 	--sidebar-ring: oklch(0.556 0 0);
+}
+
+@layer base {
+	:root {
+		--background: oklch(0.988 0.01 286);
+		--foreground: oklch(0.2 0.02 286);
+		--card: oklch(0.997 0.004 286);
+		--card-foreground: oklch(0.2 0.02 286);
+		--popover: oklch(0.996 0.006 286);
+		--popover-foreground: oklch(0.2 0.02 286);
+		--primary: oklch(0.3 0.08 264);
+		--primary-foreground: oklch(0.985 0.01 286);
+		--secondary: oklch(0.948 0.012 286);
+		--secondary-foreground: oklch(0.29 0.03 286);
+		--muted: oklch(0.958 0.012 286);
+		--muted-foreground: oklch(0.5 0.025 286);
+		--accent: oklch(0.92 0.03 230);
+		--accent-foreground: oklch(0.29 0.06 252);
+		--border: oklch(0.89 0.015 286);
+		--input: oklch(0.9 0.015 286);
+		--ring: oklch(0.62 0.12 257);
+		--radius: 1.1rem;
+	}
+
+	.dark {
+		--background: oklch(0.16 0.018 285);
+		--foreground: oklch(0.96 0.01 285);
+		--card: oklch(0.19 0.016 285);
+		--card-foreground: oklch(0.96 0.01 285);
+		--popover: oklch(0.19 0.016 285);
+		--popover-foreground: oklch(0.96 0.01 285);
+		--primary: oklch(0.82 0.03 250);
+		--primary-foreground: oklch(0.2 0.02 286);
+		--secondary: oklch(0.26 0.016 285);
+		--secondary-foreground: oklch(0.96 0.01 285);
+		--muted: oklch(0.24 0.015 285);
+		--muted-foreground: oklch(0.74 0.014 285);
+		--accent: oklch(0.28 0.022 260);
+		--accent-foreground: oklch(0.96 0.01 285);
+		--border: oklch(0.33 0.014 285 / 62%);
+		--input: oklch(0.31 0.014 285 / 72%);
+		--ring: oklch(0.73 0.05 250);
+	}
+
+	.app-ui-shell {
+		background-image: radial-gradient(
+				1200px 480px at 10% -10%,
+				rgba(102, 126, 234, 0.12),
+				transparent 60%
+			),
+			radial-gradient(
+				960px 420px at 92% -16%,
+				rgba(86, 165, 224, 0.1),
+				transparent 62%
+			),
+			linear-gradient(180deg, color-mix(in oklab, var(--background) 96%, white), var(--background));
+	}
+
+	body {
+		min-height: 100dvh;
+		letter-spacing: -0.004em;
+	}
+
+	.app-ui-shell h1,
+	.app-ui-shell h2,
+	.app-ui-shell h3,
+	.app-ui-shell h4,
+	.app-ui-shell .font-heading {
+		font-family: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system,
+			"Segoe UI", Roboto, Arial, "Noto Sans", "Apple Color Emoji",
+			"Segoe UI Emoji";
+		font-weight: 600;
+		letter-spacing: -0.01em;
+	}
+}
+
+@layer components {
+	.app-ui-shell {
+		position: relative;
+		isolation: isolate;
+	}
+
+	.app-ui-shell::before {
+		content: "";
+		position: fixed;
+		inset: 0;
+		pointer-events: none;
+		z-index: -2;
+		background-image: radial-gradient(
+				560px 260px at 20% 8%,
+				rgba(99, 102, 241, 0.12),
+				transparent 72%
+			),
+			radial-gradient(680px 320px at 84% 6%, rgba(14, 165, 233, 0.12), transparent 72%);
+	}
+
+	.app-ui-shell::after {
+		content: "";
+		position: fixed;
+		inset: 0;
+		pointer-events: none;
+		z-index: -1;
+		background-image: linear-gradient(
+				to right,
+				color-mix(in oklab, var(--border) 55%, transparent) 1px,
+				transparent 1px
+			),
+			linear-gradient(
+				to bottom,
+				color-mix(in oklab, var(--border) 42%, transparent) 1px,
+				transparent 1px
+			);
+		background-size: 36px 36px;
+		opacity: 0.28;
+		mask-image: radial-gradient(circle at center, black 44%, transparent 100%);
+	}
+
+	.v2-shell-header {
+		border-radius: calc(var(--radius) * 1.05);
+		border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
+		background: color-mix(in oklab, var(--background) 88%, white 12%);
+		box-shadow: 0 12px 44px -36px rgba(17, 24, 39, 0.45);
+		backdrop-filter: blur(14px);
+	}
+
+	.v2-panel {
+		border-radius: calc(var(--radius) * 0.85);
+		border: 1px solid color-mix(in oklab, var(--border) 72%, transparent);
+		background: color-mix(in oklab, var(--card) 94%, transparent);
+	}
+
+	.v2-preview-frame {
+		border-radius: calc(var(--radius) * 0.92);
+		border: 1px solid color-mix(in oklab, var(--border) 68%, transparent);
+		background: color-mix(in oklab, var(--background) 90%, white 10%);
+		box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55),
+			0 24px 54px -36px rgba(17, 24, 39, 0.4);
+	}
+
+	.v2-stat {
+		border-radius: calc(var(--radius) * 0.72);
+		border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+		background: color-mix(in oklab, var(--muted) 64%, transparent);
+	}
+
+	.builder-v2 :where([data-slot="card"]) {
+		border-radius: calc(var(--radius) * 0.8);
+	}
+
+	.builder-v2 :where([data-slot="label"]) {
+		font-size: 0.74rem;
+		letter-spacing: 0.05em;
+		text-transform: uppercase;
+		color: color-mix(in oklab, var(--muted-foreground) 86%, transparent);
+	}
+
+	@media (max-width: 768px) {
+		.builder-v2 :where([data-slot="card"], [data-slot="card-header"], [data-slot="card-content"], [data-slot="tabs-content"]) {
+			min-width: 0;
+			max-width: 100%;
+		}
+
+		.builder-v2 :where(input, textarea, select) {
+			width: 100%;
+			max-width: 100%;
+		}
+	}
 }

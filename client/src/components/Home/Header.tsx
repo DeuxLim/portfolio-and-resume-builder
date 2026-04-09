@@ -15,6 +15,7 @@ import {
 } from "react-icons/io5";
 import cover from "@/assets/coverphoto.jpg";
 import { FaDownload } from "react-icons/fa6";
+import { truncatePortfolioExperienceSummaryForDisplay } from "../../../../shared/constants/portfolio";
 import { samplePortfolio } from "../../../../shared/defaults/portfolio";
 import type {
 	HeaderAction,
@@ -67,6 +68,9 @@ export default function Header({ portfolio }: { portfolio?: PublicPortfolio }) {
 	const resumeHref = data.username
 		? `${apiBaseUrl}/resumes/${data.username}/pdf?download=1`
 		: "/resume.pdf";
+	const safeExperienceSummary = truncatePortfolioExperienceSummaryForDisplay(
+		data.experienceSummary,
+	);
 	const headerActions = resolveHeaderActions(data)
 		.map((action) => {
 			const value = getHeaderActionValue(action);
@@ -148,12 +152,12 @@ export default function Header({ portfolio }: { portfolio?: PublicPortfolio }) {
 							<IoLocationOutline className="shrink-0" />
 							<span className="break-words">{data.location}</span>
 						</div>
-						<div className="flex flex-wrap items-center justify-start gap-x-1 gap-y-1 text-xs text-(--app-muted) sm:text-sm">
-							<IoBriefcase className="shrink-0" />
-							<span className="break-words">
-								{data.experienceSummary} | {data.education}
-							</span>
-						</div>
+							<div className="flex flex-wrap items-center justify-start gap-x-1 gap-y-1 text-xs text-(--app-muted) sm:text-sm">
+								<IoBriefcase className="shrink-0" />
+								<span className="break-words">
+									{safeExperienceSummary} | {data.education}
+								</span>
+							</div>
 					</div>
 
 					<div className="flex justify-between">

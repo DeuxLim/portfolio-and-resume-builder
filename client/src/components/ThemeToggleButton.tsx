@@ -20,17 +20,17 @@ export default function ThemeToggleButton() {
 		<button
 			type="button"
 			aria-label={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
-			className="inline-flex h-7 w-9 items-center justify-center rounded-lg bg-background/80 transition-colors focus-visible:ring-2 focus-visible:ring-(--app-accent) focus-visible:outline-none active:scale-[0.98] sm:h-8 sm:w-10"
+			className="inline-flex h-9 w-9 items-center justify-center text-foreground/85 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/45 active:scale-[0.98]"
 			onClick={handleToggle}
 		>
 			{isDarkMode ? (
 				<IoMdSunny
-					className={`text-sm sm:text-base text-(--app-accent) ${
+					className={`text-base text-(--app-accent) ${
 						isAnimating ? "motion-safe:animate-spin" : ""
 					}`}
 				/>
 			) : (
-				<IoMdMoon className="text-sm sm:text-base text-(--app-accent)" />
+				<IoMdMoon className="text-base text-(--app-accent)" />
 			)}
 		</button>
 	);

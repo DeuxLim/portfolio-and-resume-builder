@@ -1,4 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type PointerEvent as ReactPointerEvent,
+	type ReactNode,
+} from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import ReactMarkdown from "react-markdown";
@@ -53,7 +60,7 @@ import {
 	ChevronDown,
 	ChevronUp,
 	Eye,
-	Layers3,
+	EyeOff,
 	Pencil,
 	Save,
 	Trash2,
@@ -71,6 +78,7 @@ import {
 	PORTFOLIO_LAYOUT_GAP,
 	PORTFOLIO_LAYOUT_ROW_HEIGHT,
 } from "@/lib/portfolioLayout";
+import { PORTFOLIO_EXPERIENCE_SUMMARY_MAX_LENGTH } from "../../../shared/constants/portfolio";
 import { defaultPortfolioLayout } from "../../../shared/defaults/portfolio";
 import type {
 	CustomSection,
@@ -156,6 +164,10 @@ const HEADER_ACTION_LABELS: Record<Exclude<HeaderActionType, "link">, string> = 
 	email: "Email",
 	phone: "Phone",
 };
+const FLOATING_PREVIEW_MIN_OFFSET = 8;
+const FLOATING_PREVIEW_MIN_TOP = 96;
+const FLOATING_PREVIEW_COLLAPSED_WIDTH = 288;
+const FLOATING_PREVIEW_COLLAPSED_HEIGHT = 260;
 
 export default function PortfolioEditorPage() {
 	const navigate = useNavigate();
@@ -192,6 +204,12 @@ export default function PortfolioEditorPage() {
 	const [previewOpen, setPreviewOpen] = useState(
 		() => openedFromDashboardPreview,
 	);
+	const [floatingPreviewPosition, setFloatingPreviewPosition] = useState<{
+		x: number;
+		y: number;
+	} | null>(null);
+	const [isFloatingPreviewDragging, setIsFloatingPreviewDragging] = useState(false);
+	const [isFloatingPreviewMinimized, setIsFloatingPreviewMinimized] = useState(true);
 	const [shortcutsOpen, setShortcutsOpen] = useState(false);
 	const [renameDialogOpen, setRenameDialogOpen] = useState(false);
 	const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
@@ -230,6 +248,13 @@ export default function PortfolioEditorPage() {
 	const hydratedPortfolioSourceRef = useRef<string | null>(null);
 	const avatarInputRef = useRef<HTMLInputElement | null>(null);
 	const coverInputRef = useRef<HTMLInputElement | null>(null);
+	const floatingPreviewDragRef = useRef<{
+		pointerId: number;
+		startX: number;
+		startY: number;
+		originX: number;
+		originY: number;
+	} | null>(null);
 
 	const portfolioQuery = useQuery({
 		queryKey: ["my-portfolio"],
@@ -415,8 +440,13 @@ export default function PortfolioEditorPage() {
 					Number.parseFloat(styles.paddingBottom || "0");
 				const requiredPixelHeight = innerNode.scrollHeight + paddingY + 4;
 
-				const desiredRows = clampSectionHeight(
-					toGridRowsFromPixels(requiredPixelHeight),
+				const maxRowsForSection = getSectionMaxHeight(current, section);
+				const minRowsForSection = getSectionMinHeight(current, section);
+				const desiredRows = Math.max(
+					minRowsForSection,
+					clampSectionHeight(
+						Math.min(toGridRowsFromPixels(requiredPixelHeight), maxRowsForSection),
+					),
 				);
 				if (desiredRows !== measuredHeights[section]) {
 					measuredHeights[section] = desiredRows;
@@ -708,6 +738,7 @@ export default function PortfolioEditorPage() {
 					return;
 				}
 				setPreviewOpen(false);
+				setIsFloatingPreviewDragging(false);
 				setShortcutsOpen(false);
 				setCreateModal(null);
 				setRenameDialogOpen(false);
@@ -717,6 +748,106 @@ export default function PortfolioEditorPage() {
 		window.addEventListener("keydown", onKeyDown);
 		return () => window.removeEventListener("keydown", onKeyDown);
 	}, [portfolio, previewOpen, saveMutation, openedFromDashboardPreview, navigate]);
+
+	useEffect(() => {
+		if (previewOpen || floatingPreviewPosition) return;
+		const maxX = Math.max(
+			FLOATING_PREVIEW_MIN_OFFSET,
+			window.innerWidth - FLOATING_PREVIEW_COLLAPSED_WIDTH - FLOATING_PREVIEW_MIN_OFFSET,
+		);
+		const maxY = Math.max(
+			FLOATING_PREVIEW_MIN_TOP,
+			window.innerHeight - FLOATING_PREVIEW_COLLAPSED_HEIGHT - FLOATING_PREVIEW_MIN_OFFSET,
+		);
+		setFloatingPreviewPosition({
+			x: maxX,
+			y: Math.min(
+				Math.max(
+					window.innerHeight - FLOATING_PREVIEW_COLLAPSED_HEIGHT - FLOATING_PREVIEW_MIN_OFFSET,
+					FLOATING_PREVIEW_MIN_TOP,
+				),
+				maxY,
+			),
+		});
+	}, [previewOpen, floatingPreviewPosition]);
+
+	useEffect(() => {
+		const onResize = () => {
+			setFloatingPreviewPosition((current) => {
+				if (!current) return current;
+				const maxX = Math.max(
+					FLOATING_PREVIEW_MIN_OFFSET,
+					window.innerWidth - FLOATING_PREVIEW_COLLAPSED_WIDTH - FLOATING_PREVIEW_MIN_OFFSET,
+				);
+				const maxY = Math.max(
+					FLOATING_PREVIEW_MIN_TOP,
+					window.innerHeight - FLOATING_PREVIEW_COLLAPSED_HEIGHT - FLOATING_PREVIEW_MIN_OFFSET,
+				);
+				return {
+					x: Math.min(Math.max(current.x, FLOATING_PREVIEW_MIN_OFFSET), maxX),
+					y: Math.min(Math.max(current.y, FLOATING_PREVIEW_MIN_TOP), maxY),
+				};
+			});
+		};
+		window.addEventListener("resize", onResize);
+		return () => window.removeEventListener("resize", onResize);
+	}, []);
+
+	useEffect(() => {
+		if (!previewOpen) return;
+		floatingPreviewDragRef.current = null;
+		setIsFloatingPreviewDragging(false);
+	}, [previewOpen]);
+
+	const handleFloatingPreviewPointerDown = (
+		event: ReactPointerEvent<HTMLDivElement>,
+	) => {
+		if ((event.target as HTMLElement).closest("button, a, input, textarea, select, label")) {
+			return;
+		}
+		if (!floatingPreviewPosition) return;
+		event.preventDefault();
+		event.currentTarget.setPointerCapture(event.pointerId);
+		floatingPreviewDragRef.current = {
+			pointerId: event.pointerId,
+			startX: event.clientX,
+			startY: event.clientY,
+			originX: floatingPreviewPosition.x,
+			originY: floatingPreviewPosition.y,
+		};
+		setIsFloatingPreviewDragging(true);
+	};
+
+	const handleFloatingPreviewPointerMove = (
+		event: ReactPointerEvent<HTMLDivElement>,
+	) => {
+		const dragState = floatingPreviewDragRef.current;
+		if (!dragState || dragState.pointerId !== event.pointerId) return;
+		const maxX = Math.max(
+			FLOATING_PREVIEW_MIN_OFFSET,
+			window.innerWidth - FLOATING_PREVIEW_COLLAPSED_WIDTH - FLOATING_PREVIEW_MIN_OFFSET,
+		);
+		const maxY = Math.max(
+			FLOATING_PREVIEW_MIN_TOP,
+			window.innerHeight - FLOATING_PREVIEW_COLLAPSED_HEIGHT - FLOATING_PREVIEW_MIN_OFFSET,
+		);
+		const nextX = dragState.originX + (event.clientX - dragState.startX);
+		const nextY = dragState.originY + (event.clientY - dragState.startY);
+		setFloatingPreviewPosition({
+			x: Math.min(Math.max(nextX, FLOATING_PREVIEW_MIN_OFFSET), maxX),
+			y: Math.min(Math.max(nextY, FLOATING_PREVIEW_MIN_TOP), maxY),
+		});
+	};
+
+	const stopFloatingPreviewDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+		const dragState = floatingPreviewDragRef.current;
+		if (!dragState || dragState.pointerId !== event.pointerId) return;
+		if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+			event.currentTarget.releasePointerCapture(event.pointerId);
+		}
+		floatingPreviewDragRef.current = null;
+		setIsFloatingPreviewDragging(false);
+	};
 
 	const setBasicField = (
 		key:
@@ -735,7 +866,16 @@ export default function PortfolioEditorPage() {
 			| "linkedinUrl",
 		value: string,
 	) => {
-		setPortfolio((current) => (current ? { ...current, [key]: value } : current));
+		setPortfolio((current) => {
+			if (!current) return current;
+			if (key === "experienceSummary") {
+				return {
+					...current,
+					experienceSummary: value.slice(0, PORTFOLIO_EXPERIENCE_SUMMARY_MAX_LENGTH),
+				};
+			}
+			return { ...current, [key]: value };
+		});
 	};
 
 	const setHeaderActionField = (
@@ -1253,6 +1393,42 @@ export default function PortfolioEditorPage() {
 	const getLayoutOrder = (source: EditablePortfolio) =>
 		getVisibleSectionOrder(source);
 
+	const getSectionMaxHeight = (
+		source: EditablePortfolio,
+		sectionKey: PortfolioSectionKey,
+	): number => {
+		switch (sectionKey) {
+			case "about":
+			case "timeline":
+				return 12;
+			case "experience":
+				return 16;
+			case "tech":
+				return 14;
+			case "projects": {
+				const projectCount = source.projects.length;
+				const projectedRows = 4 + Math.ceil(projectCount / 2) * 2;
+				return Math.min(14, Math.max(6, projectedRows));
+			}
+			case "heatmap":
+				return source.githubUsername?.trim() ? 10 : 6;
+			case "custom":
+				return 16;
+			default:
+				return GRID_MAX_HEIGHT;
+		}
+	};
+
+	const getSectionMinHeight = (
+		source: EditablePortfolio,
+		sectionKey: PortfolioSectionKey,
+	): number => {
+		if (sectionKey === "heatmap") {
+			return source.githubUsername?.trim() ? 6 : GRID_MIN_HEIGHT;
+		}
+		return GRID_MIN_HEIGHT;
+	};
+
 	const getHiddenSections = (source: EditablePortfolio) =>
 		getVisibleHiddenSections(source);
 
@@ -1292,10 +1468,21 @@ export default function PortfolioEditorPage() {
 		sectionKey: PortfolioSectionKey,
 	): number => {
 		const height = Number(source.layout?.sectionHeights?.[sectionKey]);
+		const maxRowsForSection = getSectionMaxHeight(source, sectionKey);
+		const minRowsForSection = getSectionMinHeight(source, sectionKey);
 		if (Number.isFinite(height)) {
-			return clampSectionHeight(height);
+			return Math.max(
+				minRowsForSection,
+				Math.min(clampSectionHeight(height), maxRowsForSection),
+			);
 		}
-		return clampSectionHeight(defaultPortfolioLayout.sectionHeights[sectionKey] ?? 6);
+		return Math.max(
+			minRowsForSection,
+			Math.min(
+				clampSectionHeight(defaultPortfolioLayout.sectionHeights[sectionKey] ?? 6),
+				maxRowsForSection,
+			),
+		);
 	};
 
 	const resolveSectionSpanRecord = (
@@ -1506,7 +1693,12 @@ export default function PortfolioEditorPage() {
 		const nextHeights = sorted.reduce<Record<PortfolioSectionKey, number>>(
 			(acc, item) => {
 				const key = item.i as PortfolioSectionKey;
-				acc[key] = clampSectionHeight(item.h);
+				const maxRowsForSection = getSectionMaxHeight(source, key);
+				const minRowsForSection = getSectionMinHeight(source, key);
+				acc[key] = Math.max(
+					minRowsForSection,
+					Math.min(clampSectionHeight(item.h), maxRowsForSection),
+				);
 				return acc;
 			},
 			resolveSectionHeightRecord(source),
@@ -2043,7 +2235,7 @@ export default function PortfolioEditorPage() {
 	};
 
 	return (
-		<main className="space-y-5 pb-10">
+		<main className="builder-v2 space-y-6 pb-20">
 			{toast ? (
 				<div className="fixed right-4 top-4 z-50">
 					<div
@@ -2057,22 +2249,18 @@ export default function PortfolioEditorPage() {
 					</div>
 				</div>
 			) : null}
-			<Card className="bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-transparent shadow-none">
+			<Card className="v2-panel">
 				<CardHeader className="gap-3">
-					<div className="space-y-2">
-						<Badge variant="secondary" className="w-fit">
-							<Layers3 className="mr-1 size-3.5" />
-							Portfolio Editor
-						</Badge>
+					<div className="min-w-0 space-y-1.5">
 						<div className="flex flex-wrap items-center gap-2">
-							<CardTitle className="text-xl sm:text-2xl">
+							<CardTitle className="text-2xl sm:text-3xl">
 								{modeTitle}: {editingVersionName}
 							</CardTitle>
 							<Badge
 								variant={editingVersionIsLive ? "secondary" : "outline"}
 								className={
 									editingVersionIsLive
-										? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+										? "border-primary/45 bg-primary/15 text-primary"
 										: undefined
 								}
 							>
@@ -2080,56 +2268,60 @@ export default function PortfolioEditorPage() {
 							</Badge>
 						</div>
 						<CardDescription>
-							Public URL: <span className="font-medium">/{portfolio.username}</span>
+							Edit content, tune layout, and manage what visitors see on your live portfolio.
 						</CardDescription>
+						<div className="text-xs text-muted-foreground">
+							Public URL:{" "}
+							<span className="font-medium text-foreground">/{portfolio.username}</span>
+						</div>
 					</div>
-						<CardAction className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:flex-row sm:items-center">
-							{canManageSelectedDraftVersion ? (
-								<Button
-									type="button"
-									size="sm"
-									variant="outline"
-									className="h-9 w-full px-3 sm:w-auto"
-									onClick={() => setRenameDialogOpen(true)}
-								>
-									<Pencil className="size-4" />
-									Rename
-								</Button>
-							) : null}
-							{canManageSelectedDraftVersion ? (
-								<Button
-									type="button"
-									size="sm"
-									variant="outline"
-									className="h-9 w-full px-3 text-destructive hover:text-destructive sm:w-auto"
-									onClick={() => setDeleteDialogOpen(true)}
-									disabled={Boolean(editingVersion?.isActive)}
-								>
-									<Trash2 className="size-4" />
-									Delete
-								</Button>
-							) : null}
+					<CardAction className="flex w-full flex-col items-start gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+						{canManageSelectedDraftVersion ? (
 							<Button
 								type="button"
 								size="sm"
 								variant="outline"
-								className="h-9 w-full px-3 sm:w-auto"
-								onClick={() => setPreviewOpen(true)}
+								className="w-auto"
+								onClick={() => setRenameDialogOpen(true)}
 							>
-								<Eye className="size-4" />
-								Preview
+								<Pencil className="size-4" />
+								Rename
 							</Button>
+						) : null}
+						{canManageSelectedDraftVersion ? (
 							<Button
 								type="button"
 								size="sm"
-								className="h-9 w-full px-3 sm:w-auto"
-								onClick={() => saveMutation.mutate()}
-								disabled={saveMutation.isPending}
+								variant="outline"
+								className="w-auto text-destructive hover:text-destructive"
+								onClick={() => setDeleteDialogOpen(true)}
+								disabled={Boolean(editingVersion?.isActive)}
 							>
-								<Save className="size-4" />
-								{saveMutation.isPending ? "Saving..." : "Save changes"}
+								<Trash2 className="size-4" />
+								Delete
 							</Button>
-						</CardAction>
+						) : null}
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							className="w-auto"
+							onClick={() => setPreviewOpen(true)}
+						>
+							<Eye className="size-4" />
+							Preview
+						</Button>
+						<Button
+							type="button"
+							size="sm"
+							className="w-auto"
+							onClick={() => saveMutation.mutate()}
+							disabled={saveMutation.isPending}
+						>
+							<Save className="size-4" />
+							{saveMutation.isPending ? "Saving..." : "Save changes"}
+						</Button>
+					</CardAction>
 				</CardHeader>
 			</Card>
 			{draftMode ? (
@@ -2145,7 +2337,7 @@ export default function PortfolioEditorPage() {
 						type="button"
 						size="sm"
 						variant="outline"
-						className="w-full sm:w-auto"
+						className="w-auto"
 						onClick={() => activateVersionMutation.mutate(editingVersion.id)}
 						disabled={activateVersionMutation.isPending}
 					>
@@ -2154,32 +2346,33 @@ export default function PortfolioEditorPage() {
 				</div>
 			) : null}
 
-			<Tabs value={activeTab} onValueChange={setActiveTab} className="gap-3">
+			<div className="space-y-6">
+			<Tabs value={activeTab} onValueChange={setActiveTab} className="gap-4">
 				<TabsList
-					className="!h-auto w-full justify-start gap-1 overflow-x-auto rounded-xl bg-muted/45 p-1"
+					className="!h-auto w-full flex-wrap justify-start gap-1"
 				>
-					<TabsTrigger value="profile" className="h-9 flex-none rounded-lg px-3">
+					<TabsTrigger value="profile" className="h-9 flex-none px-4">
 						Profile
 					</TabsTrigger>
-					<TabsTrigger value="story" className="h-9 flex-none rounded-lg px-3">
+					<TabsTrigger value="story" className="h-9 flex-none px-4">
 						Story
 					</TabsTrigger>
-					<TabsTrigger value="career" className="h-9 flex-none rounded-lg px-3">
+					<TabsTrigger value="career" className="h-9 flex-none px-4">
 						Career
 					</TabsTrigger>
-					<TabsTrigger value="stack" className="h-9 flex-none rounded-lg px-3">
+					<TabsTrigger value="stack" className="h-9 flex-none px-4">
 						Stack & Projects
 					</TabsTrigger>
-					<TabsTrigger value="layout" className="h-9 flex-none rounded-lg px-3">
+					<TabsTrigger value="layout" className="h-9 flex-none px-4">
 						Layout
 					</TabsTrigger>
-					<TabsTrigger value="extras" className="h-9 flex-none rounded-lg px-3">
+					<TabsTrigger value="extras" className="h-9 flex-none px-4">
 						Extras
 					</TabsTrigger>
 				</TabsList>
 
 				<TabsContent value="profile" className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-					<Card className="shadow-none">
+					<Card className="v2-panel">
 						<CardHeader>
 							<div>
 								<CardTitle>Identity</CardTitle>
@@ -2187,32 +2380,45 @@ export default function PortfolioEditorPage() {
 							</div>
 						</CardHeader>
 						<CardContent className="space-y-4">
-							{[
-								["fullName", "Full name"],
-								["headline", "Headline"],
-								["location", "Location"],
-								["experienceSummary", "Experience summary"],
-								["education", "Education"],
-								["availability", "Availability"],
-							].map(([key, label]) => (
-								<div key={key} className="space-y-2 rounded-lg bg-muted/20 p-3">
-									<Label htmlFor={key}>{label}</Label>
-									<Input
-										id={key}
-										value={String(portfolio[key as keyof EditablePortfolio] ?? "")}
-										onChange={(event) =>
-											setBasicField(
-												key as Parameters<typeof setBasicField>[0],
-												event.target.value,
-											)
-										}
-									/>
-								</div>
-							))}
+								{[
+									{ key: "fullName", label: "Full name" },
+									{ key: "headline", label: "Headline" },
+									{ key: "location", label: "Location" },
+									{
+										key: "experienceSummary",
+										label: "Experience summary",
+										maxLength: PORTFOLIO_EXPERIENCE_SUMMARY_MAX_LENGTH,
+									},
+									{ key: "education", label: "Education" },
+									{ key: "availability", label: "Availability" },
+								].map((field) => (
+									<div key={field.key} className="space-y-2 rounded-lg bg-muted/20 p-3">
+										<Label htmlFor={field.key}>{field.label}</Label>
+										<Input
+											id={field.key}
+											value={String(
+												portfolio[field.key as keyof EditablePortfolio] ?? "",
+											)}
+											maxLength={field.maxLength}
+											onChange={(event) =>
+												setBasicField(
+													field.key as Parameters<typeof setBasicField>[0],
+													event.target.value,
+												)
+											}
+										/>
+										{field.key === "experienceSummary" ? (
+											<div className="text-xs text-muted-foreground">
+												{portfolio.experienceSummary.length}/
+												{PORTFOLIO_EXPERIENCE_SUMMARY_MAX_LENGTH}
+											</div>
+										) : null}
+									</div>
+								))}
 						</CardContent>
 					</Card>
 
-					<Card className="shadow-none">
+					<Card className="v2-panel">
 						<CardHeader>
 							<CardTitle>Links & Visuals</CardTitle>
 							<CardDescription>
@@ -2441,7 +2647,7 @@ export default function PortfolioEditorPage() {
 				</TabsContent>
 
 				<TabsContent value="story" className="space-y-6">
-					<Card className="shadow-none">
+					<Card className="v2-panel">
 						<CardHeader>
 							<div className="flex items-center justify-between gap-3">
 								<div>
@@ -2509,7 +2715,7 @@ export default function PortfolioEditorPage() {
 				</TabsContent>
 
 				<TabsContent value="career" className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-					<Card className="shadow-none">
+					<Card className="v2-panel">
 						<CardHeader>
 							<div>
 								<CardTitle>Timeline</CardTitle>
@@ -2728,7 +2934,7 @@ export default function PortfolioEditorPage() {
 						</CardContent>
 					</Card>
 
-					<Card className="shadow-none">
+					<Card className="v2-panel">
 						<CardHeader>
 							<CardTitle>Experience</CardTitle>
 							<CardDescription>Roles, periods, and achievements.</CardDescription>
@@ -2958,7 +3164,7 @@ export default function PortfolioEditorPage() {
 				</TabsContent>
 
 				<TabsContent value="stack" className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-					<Card className="shadow-none">
+					<Card className="v2-panel">
 						<CardHeader>
 							<div>
 								<CardTitle>Tech stack</CardTitle>
@@ -3298,7 +3504,7 @@ export default function PortfolioEditorPage() {
 						</CardContent>
 					</Card>
 
-					<Card className="shadow-none">
+					<Card className="v2-panel">
 						<CardHeader>
 							<CardTitle>Projects</CardTitle>
 							<CardDescription>Showcase your strongest work.</CardDescription>
@@ -3489,7 +3695,7 @@ export default function PortfolioEditorPage() {
 				</TabsContent>
 
 				<TabsContent value="layout" className="space-y-6">
-					<Card className="shadow-none">
+					<Card className="v2-panel">
 						<CardHeader>
 							<div>
 								<CardTitle>Layout canvas</CardTitle>
@@ -3721,7 +3927,7 @@ export default function PortfolioEditorPage() {
 				</TabsContent>
 
 				<TabsContent value="extras" className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-					<Card className="shadow-none">
+					<Card className="v2-panel">
 						<CardHeader>
 							<div>
 								<CardTitle>Custom sections</CardTitle>
@@ -3731,7 +3937,7 @@ export default function PortfolioEditorPage() {
 						<CardContent>{renderCustomSectionsEditor()}</CardContent>
 					</Card>
 
-					<Card className="shadow-none">
+					<Card className="v2-panel">
 						<CardHeader>
 							<CardTitle>GitHub heatmap</CardTitle>
 							<CardDescription>Configure the contributions section.</CardDescription>
@@ -3752,7 +3958,7 @@ export default function PortfolioEditorPage() {
 						</CardContent>
 					</Card>
 
-					<Card className="shadow-none">
+					<Card className="v2-panel">
 						<CardHeader>
 							<CardTitle>AI & chat</CardTitle>
 							<CardDescription>Control assistant features for this portfolio.</CardDescription>
@@ -3810,6 +4016,95 @@ export default function PortfolioEditorPage() {
 					</Card>
 				</TabsContent>
 				</Tabs>
+			</div>
+
+			{!previewOpen ? (
+				<div
+					className="pointer-events-none fixed z-30 hidden xl:block"
+					style={
+						isFloatingPreviewMinimized
+							? {
+									right: "1rem",
+									bottom: "1rem",
+								}
+							: floatingPreviewPosition
+								? {
+										left: `${floatingPreviewPosition.x}px`,
+										top: `${floatingPreviewPosition.y}px`,
+									}
+								: {
+										left: `${FLOATING_PREVIEW_MIN_OFFSET}px`,
+										top: `${FLOATING_PREVIEW_MIN_TOP}px`,
+								}
+					}
+				>
+					{isFloatingPreviewMinimized ? (
+						<div className="pointer-events-auto">
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								className="w-auto"
+								onClick={() => setIsFloatingPreviewMinimized(false)}
+							>
+								<Eye className="size-4" />
+								Show preview
+							</Button>
+						</div>
+					) : (
+						<div className="pointer-events-auto">
+							<div
+								className={`v2-preview-frame w-[18rem] overflow-hidden p-2.5 select-none ${
+									isFloatingPreviewDragging ? "cursor-grabbing" : "cursor-grab"
+								}`}
+								onPointerDown={handleFloatingPreviewPointerDown}
+								onPointerMove={handleFloatingPreviewPointerMove}
+								onPointerUp={stopFloatingPreviewDrag}
+								onPointerCancel={stopFloatingPreviewDrag}
+							>
+								<div className="mb-2 flex items-center justify-between gap-2 px-1">
+									<div>
+										<div className="text-[11px] font-semibold tracking-[0.14em] text-muted-foreground">
+											LIVE PORTFOLIO PREVIEW
+										</div>
+										<div className="text-xs text-muted-foreground">
+											Drag to move
+										</div>
+									</div>
+									<div className="flex items-center gap-1">
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											className="px-2"
+											onClick={() => setIsFloatingPreviewMinimized(true)}
+											aria-label="Minimize preview"
+											title="Minimize preview"
+										>
+											<EyeOff className="size-4" />
+										</Button>
+										<Button
+											type="button"
+											size="sm"
+											variant="outline"
+											onClick={() => setPreviewOpen(true)}
+										>
+											Fullscreen
+										</Button>
+									</div>
+								</div>
+								<div className="h-[13rem] overflow-y-auto overflow-x-hidden overscroll-contain rounded-lg border border-border/70 bg-background/85 p-2">
+									<div className="origin-top-left scale-[0.255]">
+										<div className="w-[980px]">
+											<PortfolioView portfolio={portfolio} />
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					)}
+				</div>
+			) : null}
 
 				{createModal ? (
 					<div className="fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-black/50 px-4 py-4 sm:items-center sm:py-6">

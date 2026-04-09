@@ -7,7 +7,7 @@ import { samplePortfolio } from "../../../shared/defaults/portfolio";
 export default function Home() {
 	return (
 		<ChatProvider>
-			<main className="flex flex-col gap-3 sm:gap-4">
+			<main className="generated-output flex flex-col gap-3 sm:gap-4">
 				<Header portfolio={samplePortfolio} />
 				<Content portfolio={samplePortfolio} />
 			</main>

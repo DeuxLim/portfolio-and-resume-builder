@@ -18,6 +18,8 @@ export default function registerRoutes(app: Express) {
 		"POST /api/chat/send-message",
 		"GET /api/resumes/me",
 		"PUT /api/resumes/me",
+		"GET /api/resumes/me/versions",
+		"POST /api/resumes/me/versions",
 		"GET /api/resumes/:username/pdf",
 	];
 

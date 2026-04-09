@@ -1,44 +1,41 @@
 import { Link, Navigate } from "react-router";
+import { motion } from "motion/react";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import {
+	ArrowUpRight,
 	CheckCircle2,
-	CopyCheck,
-	Eye,
 	FileText,
-	LayoutTemplate,
+	Layers3,
+	MousePointerClick,
 	Rocket,
 } from "lucide-react";
 import PortfolioMiniPreview from "@/components/Landing/PortfolioMiniPreview";
 import { useSession } from "@/hooks/useSession";
 
-const pillars = [
+const workflow = [
 	{
-		title: "Fast Setup",
+		title: "Shape your story",
 		description:
-			"Start from a ready structure, fill your details, and publish without building a site from scratch.",
-		icon: Rocket,
+			"Fill focused sections for profile, experience, projects, and stack without getting lost in layout settings.",
 	},
 	{
-		title: "Readable Portfolio Layout",
+		title: "Tune with live preview",
 		description:
-			"Sections are organized like modern developer portfolios so recruiters can scan your strongest work quickly.",
-		icon: LayoutTemplate,
+			"Edit and validate in one studio so what you publish and what you export always stay aligned.",
 	},
 	{
-		title: "Version Control for Content",
+		title: "Ship with confidence",
 		description:
-			"Keep multiple versions for different roles and choose what stays live on your public URL and resume export.",
-		icon: CopyCheck,
+			"Publish your live version and export resume PDF from the same source of truth.",
 	},
+];
+
+const highlights = [
+	"Version-safe publishing with live and draft states",
+	"Portfolio and resume workflows built from one content foundation",
+	"Mobile-ready editing experience with docked navigation",
 ];
 
 export default function LandingPage() {
@@ -53,239 +50,185 @@ export default function LandingPage() {
 	}
 
 	return (
-		<main className="mx-auto w-full max-w-[88rem] space-y-8 pb-12 sm:space-y-20 sm:pb-28">
-			<section className="grid items-start gap-6 sm:gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:gap-12">
-				<div className="space-y-6 sm:space-y-10">
-					<div className="space-y-4 sm:space-y-6">
-						<h1 className="max-w-xl text-[2rem] leading-tight font-semibold tracking-tight sm:text-5xl lg:text-6xl">
-							Build a resume-style web developer portfolio in one sitting.
-						</h1>
-						<p className="max-w-xl text-[1.15rem] leading-relaxed text-muted-foreground sm:text-lg">
-							Write once, publish once, and keep your link updated. The builder
-							uses a resume-style layout recruiters already know how to scan, now
-							with a resume builder and PDF export workflow.
+		<main className="space-y-16 pb-16 sm:space-y-24 sm:pb-24">
+			<section className="relative -mx-3 overflow-hidden rounded-[2rem] border border-border/70 bg-background/85 px-4 py-8 sm:mx-0 sm:px-8 sm:py-12 lg:px-12 lg:py-14">
+				<div className="pointer-events-none absolute -top-12 left-10 h-44 w-44 rounded-full bg-indigo-400/20 blur-3xl" />
+				<div className="pointer-events-none absolute top-12 right-8 h-52 w-52 rounded-full bg-sky-400/18 blur-3xl" />
+				<div className="grid items-center gap-10 lg:grid-cols-[minmax(0,0.86fr)_minmax(0,1fr)]">
+					<motion.div
+						initial={{ opacity: 0, y: 16 }}
+						animate={{ opacity: 1, y: 0 }}
+						transition={{ duration: 0.5, ease: "easeOut" }}
+						className="space-y-7"
+					>
+						<Badge variant="outline" className="w-fit">
+							<SparkLineIcon />
+							Studio v2
+						</Badge>
+						<div className="space-y-4">
+							<p className="text-xs font-semibold tracking-[0.2em] text-muted-foreground">
+								RESUME + PORTFOLIO BUILDER
+							</p>
+							<h1 className="max-w-2xl text-5xl leading-[0.94] sm:text-6xl lg:text-7xl">
+								Build your career site like a premium product release.
+							</h1>
+							<p className="max-w-xl text-base text-muted-foreground sm:text-lg">
+								One workspace for portfolio content, resume export, version control, and
+								publishing flow. Designed for clarity, speed, and confidence.
+							</p>
+						</div>
+						<div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+							<Link to="/signup" className={buttonVariants({ size: "lg" })}>
+								Start free workspace
+								<ArrowUpRight className="size-4" />
+							</Link>
+							<Link to="/sample" className={buttonVariants({ size: "lg", variant: "outline" })}>
+								View sample output
+							</Link>
+						</div>
+						<div className="grid gap-3 sm:grid-cols-3">
+							<div className="v2-stat px-4 py-3">
+								<div className="text-[0.68rem] font-semibold tracking-[0.14em] text-muted-foreground">
+									BUILDERS
+								</div>
+								<div className="mt-1 text-xl font-semibold">2</div>
+							</div>
+							<div className="v2-stat px-4 py-3">
+								<div className="text-[0.68rem] font-semibold tracking-[0.14em] text-muted-foreground">
+									PUBLISH MODES
+								</div>
+								<div className="mt-1 text-xl font-semibold">Live + Draft</div>
+							</div>
+							<div className="v2-stat px-4 py-3">
+								<div className="text-[0.68rem] font-semibold tracking-[0.14em] text-muted-foreground">
+									EXPORT
+								</div>
+								<div className="mt-1 text-xl font-semibold">PDF Ready</div>
+							</div>
+						</div>
+					</motion.div>
+
+					<motion.div
+						initial={{ opacity: 0, scale: 0.98, y: 18 }}
+						animate={{ opacity: 1, scale: 1, y: 0 }}
+						transition={{ duration: 0.65, ease: "easeOut", delay: 0.08 }}
+						className="v2-preview-frame overflow-hidden p-4 sm:p-5"
+					>
+						<div className="mb-4 flex items-center justify-between rounded-2xl border border-border/65 bg-muted/45 px-3 py-2">
+							<div>
+								<div className="text-xs font-semibold tracking-[0.16em] text-muted-foreground">
+									LIVE PREVIEW
+								</div>
+								<div className="text-sm font-medium">morganreyes.dev</div>
+							</div>
+							<Link
+								to="/sample"
+								className={buttonVariants({ variant: "secondary", size: "sm" })}
+							>
+								Open full sample
+							</Link>
+						</div>
+						<div className="overflow-hidden rounded-[1.4rem] border border-border/70 bg-background/88 p-2">
+							<PortfolioMiniPreview large />
+						</div>
+					</motion.div>
+				</div>
+			</section>
+
+			<section className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
+				<div className="v2-panel p-6 sm:p-8">
+					<div className="mb-5 flex items-center gap-2">
+						<MousePointerClick className="size-4 text-primary" />
+						<p className="text-xs font-semibold tracking-[0.17em] text-muted-foreground">
+							WORKFLOW
 						</p>
 					</div>
+					<div className="space-y-5">
+						{workflow.map((step, index) => (
+							<div key={step.title}>
+								<div className="flex items-start gap-4">
+									<div className="mt-1 inline-flex size-7 items-center justify-center rounded-full bg-primary/13 text-xs font-semibold text-primary">
+										{index + 1}
+									</div>
+									<div>
+										<h2 className="text-2xl leading-tight sm:text-3xl">{step.title}</h2>
+										<p className="mt-2 text-sm text-muted-foreground sm:text-base">
+											{step.description}
+										</p>
+									</div>
+								</div>
+								{index < workflow.length - 1 ? <Separator className="mt-5" /> : null}
+							</div>
+						))}
+					</div>
+				</div>
 
-					<div className="flex flex-col gap-2.5 sm:flex-row sm:flex-wrap sm:gap-4">
+				<div className="v2-panel flex flex-col justify-between p-6 sm:p-8">
+					<div className="space-y-4">
+						<p className="text-xs font-semibold tracking-[0.17em] text-muted-foreground">
+							WHY IT FEELS DIFFERENT
+						</p>
+						<h2 className="text-3xl leading-tight sm:text-4xl">
+							Designed as a creative workspace, not a generic admin form.
+						</h2>
+						<ul className="space-y-3">
+							{highlights.map((item) => (
+								<li key={item} className="flex items-start gap-3 text-sm sm:text-base">
+									<CheckCircle2 className="mt-0.5 size-4 text-primary" />
+									<span className="text-muted-foreground">{item}</span>
+								</li>
+							))}
+						</ul>
+					</div>
+					<div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
 						<Link
-							to="/signup"
-							className={`${buttonVariants({ size: "lg" })} h-11 w-full justify-center sm:h-12 sm:w-auto`}
+							to="/dashboard/edit"
+							className={buttonVariants({ variant: "outline", size: "lg" })}
 						>
-							Create account
+							<Layers3 className="size-4" />
+							Try portfolio builder
 						</Link>
 						<Link
 							to="/dashboard/resume"
-							className={`${buttonVariants({ size: "lg", variant: "secondary" })} h-11 w-full justify-center sm:h-12 sm:w-auto`}
+							className={buttonVariants({ variant: "outline", size: "lg" })}
 						>
-							Open resume builder
-						</Link>
-						<Link
-							to="/sample"
-							className={`${buttonVariants({ size: "lg", variant: "outline" })} h-11 w-full justify-center sm:h-12 sm:w-auto`}
-						>
-							View full sample
+							<FileText className="size-4" />
+							Try resume builder
 						</Link>
 					</div>
+				</div>
+			</section>
 
-					<div className="grid gap-3 sm:gap-4 sm:grid-cols-2">
-						<div className="rounded-xl border bg-background/80 p-4 sm:p-6">
-							<div className="text-sm font-medium">Recruiter-friendly flow</div>
-							<div className="mt-1 text-sm text-muted-foreground">
-								Intro, experience, projects, and stack in a clear reading order.
-							</div>
-						</div>
-						<div className="rounded-xl border bg-background/80 p-4 sm:p-6">
-							<div className="text-sm font-medium">Stable public link</div>
-							<div className="mt-1 text-sm text-muted-foreground">
-								Your URL stays the same while you improve content over time.
-							</div>
-						</div>
+			<section className="v2-panel p-7 sm:p-10">
+				<div className="grid gap-8 lg:grid-cols-[1fr_1fr_auto] lg:items-center">
+					<div>
+						<p className="text-xs font-semibold tracking-[0.17em] text-muted-foreground">
+							LAUNCH READY
+						</p>
+						<h2 className="mt-3 text-4xl leading-[0.95] sm:text-5xl">
+							Publish faster without sacrificing polish.
+						</h2>
 					</div>
-				</div>
-
-				<Card className="border-border/70 bg-gradient-to-br from-sky-500/10 via-background to-emerald-500/5 shadow-none">
-					<CardHeader className="space-y-3 p-5 pb-3 sm:space-y-4 sm:p-8 sm:pb-5">
-						<Badge variant="outline" className="w-fit border-sky-400/50 bg-sky-500/10">
-							<Eye className="mr-1 size-3.5" />
-							Sample Preview
-						</Badge>
-						<CardTitle className="text-[2rem] leading-tight sm:text-3xl">
-							Quick look at the generated style
-						</CardTitle>
-						<CardDescription className="text-sm sm:text-base">
-							A compact side preview so you can scan the resume-style layout at a glance.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4 p-5 pt-0 sm:space-y-5 sm:p-8 sm:pt-0">
-						<PortfolioMiniPreview />
-						<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm font-medium">
-							your-domain.com/your-username
-						</div>
-						<div className="rounded-lg bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-							Want to inspect the full layout? Scroll to the featured sample section.
-						</div>
-					</CardContent>
-				</Card>
-			</section>
-
-			<section className="space-y-3 sm:space-y-4">
-				<div className="space-y-2">
-					<h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-						Full-size sample portfolio output
-					</h2>
-					<p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
-						This larger preview highlights spacing, section hierarchy, and readability
-						of the final resume-style portfolio page.
+					<p className="text-sm text-muted-foreground sm:text-base">
+						Create polished public output, keep safe draft iterations, and export resume PDFs
+						from the same source data. This keeps your brand, story, and resume aligned.
 					</p>
+					<Link to="/signup" className={buttonVariants({ size: "lg" })}>
+						<Rocket className="size-4" />
+						Create account
+					</Link>
 				</div>
-				<Card className="border-border/70 bg-gradient-to-br from-sky-500/10 via-background to-emerald-500/5 shadow-none">
-					<CardContent className="space-y-4 p-5 sm:space-y-5 sm:p-8">
-						<PortfolioMiniPreview large />
-						<div className="rounded-lg bg-muted/35 px-3 py-2 text-sm font-medium">
-							your-domain.com/your-username
-						</div>
-					</CardContent>
-				</Card>
 			</section>
-
-			<section className="space-y-3 sm:space-y-4">
-				<div className="space-y-2">
-					<h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-						Resume builder with generated sample view
-					</h2>
-					<p className="max-w-3xl text-sm text-muted-foreground sm:text-base">
-						Build your resume in guided sections, review a generated sample
-						screenshot, and keep it aligned with your portfolio content.
-					</p>
-				</div>
-				<Card className="border-border/70 shadow-none">
-					<CardContent className="grid gap-5 p-5 sm:gap-6 sm:p-8 lg:grid-cols-[1.1fr_0.9fr]">
-						<div className="overflow-hidden rounded-xl border bg-background">
-							<div className="flex items-center gap-2 border-b bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-								<FileText className="size-3.5" />
-								generated-resume-sample.png
-							</div>
-							<div className="h-[19rem] w-full bg-muted/20 p-3 sm:h-[34rem] sm:p-7">
-								<div className="h-full w-full rounded-lg border bg-background p-5 shadow-sm sm:p-6">
-									<div className="space-y-1 border-b pb-4">
-										<div className="text-lg font-semibold">Morgan Reyes</div>
-										<div className="text-xs text-muted-foreground">
-											Full-Stack Developer • morgan@example.dev • manila, ph
-										</div>
-									</div>
-									<div className="space-y-4 pt-4 text-xs sm:text-sm">
-										<div className="space-y-1.5">
-											<div className="font-semibold tracking-wide">SUMMARY</div>
-											<div className="h-2.5 w-full rounded bg-muted/65" />
-											<div className="h-2.5 w-[92%] rounded bg-muted/55" />
-										</div>
-										<div className="space-y-1.5">
-											<div className="font-semibold tracking-wide">EXPERIENCE</div>
-											<div className="h-2.5 w-full rounded bg-muted/65" />
-											<div className="h-2.5 w-[88%] rounded bg-muted/55" />
-											<div className="h-2.5 w-[94%] rounded bg-muted/50" />
-										</div>
-										<div className="space-y-1.5">
-											<div className="font-semibold tracking-wide">PROJECTS</div>
-											<div className="h-2.5 w-full rounded bg-muted/65" />
-											<div className="h-2.5 w-[90%] rounded bg-muted/55" />
-										</div>
-										<div className="space-y-1.5">
-											<div className="font-semibold tracking-wide">SKILLS</div>
-											<div className="h-2.5 w-[75%] rounded bg-muted/60" />
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
-						<div className="space-y-4 text-sm text-muted-foreground sm:text-base">
-							<div className="rounded-lg border bg-background/90 px-4 py-3">
-								Generate ATS-ready PDF output directly from your resume builder.
-							</div>
-							<div className="rounded-lg border bg-background/90 px-4 py-3">
-								Reuse the same core content across your portfolio and resume.
-							</div>
-							<div className="rounded-lg border bg-background/90 px-4 py-3">
-								Update once, then publish and export from one workflow.
-							</div>
-							<Link
-								to="/dashboard/resume"
-								className={buttonVariants({ size: "lg" })}
-							>
-								Go to resume builder
-							</Link>
-						</div>
-					</CardContent>
-				</Card>
-			</section>
-
-			<section className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
-				{pillars.map((pillar) => (
-					<Card key={pillar.title} className="border-border/70 bg-background/75 shadow-none">
-						<CardHeader className="gap-4 p-6 sm:p-7">
-							<div className="flex size-9 items-center justify-center rounded-lg border bg-muted/40">
-								<pillar.icon className="size-4 text-muted-foreground" />
-							</div>
-							<CardTitle className="text-lg">{pillar.title}</CardTitle>
-							<CardDescription>{pillar.description}</CardDescription>
-						</CardHeader>
-					</Card>
-				))}
-			</section>
-
-			<section className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
-				<Card className="border-border/70 shadow-none">
-					<CardHeader className="p-6 pb-3 sm:p-7 sm:pb-4">
-						<CardTitle className="text-xl">How it works</CardTitle>
-					</CardHeader>
-					<CardContent className="space-y-5 p-6 pt-2 text-sm sm:p-7 sm:pt-2 sm:text-base">
-						<div className="flex items-start gap-3">
-							<div className="mt-0.5 rounded-md border bg-muted/30 px-2 py-0.5 text-xs font-semibold">
-								1
-							</div>
-							<div>Create an account and open your portfolio dashboard.</div>
-						</div>
-						<Separator />
-						<div className="flex items-start gap-3">
-							<div className="mt-0.5 rounded-md border bg-muted/30 px-2 py-0.5 text-xs font-semibold">
-								2
-							</div>
-							<div>Fill guided sections for intro, experience, projects, and stack.</div>
-						</div>
-						<Separator />
-						<div className="flex items-start gap-3">
-							<div className="mt-0.5 rounded-md border bg-muted/30 px-2 py-0.5 text-xs font-semibold">
-								3
-							</div>
-							<div>Publish your version and keep iterating from the editor anytime.</div>
-						</div>
-					</CardContent>
-				</Card>
-				<Card className="border-border/70 shadow-none">
-					<CardHeader className="p-6 pb-3 sm:p-7 sm:pb-4">
-						<CardTitle className="text-xl">Why developers use this</CardTitle>
-						<CardDescription>
-							Clean output and practical editing flow.
-						</CardDescription>
-					</CardHeader>
-					<CardContent className="space-y-4 p-6 pt-2 text-sm text-muted-foreground sm:p-7 sm:pt-2">
-						<div className="flex items-start gap-2 rounded-md border px-3 py-2">
-							<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-							Portfolio output stays consistent and professional.
-						</div>
-						<div className="flex items-start gap-2 rounded-md border px-3 py-2">
-							<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-							Update content without rebuilding your site each time.
-						</div>
-						<div className="flex items-start gap-2 rounded-md border px-3 py-2">
-							<CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-500" />
-							Easy control of what recruiters see on your live link.
-						</div>
-					</CardContent>
-				</Card>
-			</section>
-
 		</main>
+	);
+}
+
+function SparkLineIcon() {
+	return (
+		<span aria-hidden="true" className="relative mr-1 inline-flex h-2.5 w-6 items-center">
+			<span className="absolute left-0 h-[2px] w-full rounded-full bg-current/30" />
+			<span className="absolute left-1 h-[2px] w-1 rounded-full bg-current" />
+			<span className="absolute left-3 h-[2px] w-2 rounded-full bg-current" />
+		</span>
 	);
 }

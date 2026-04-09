@@ -1,4 +1,5 @@
 import { buildStarterPortfolio } from "../../shared/defaults/portfolio.js";
+import { clampPortfolioExperienceSummary } from "../../shared/constants/portfolio.js";
 import type {
 	CustomSection,
 	EditablePortfolio,
@@ -182,7 +183,9 @@ export const serializePortfolio = (portfolio: EditablePortfolio) => ({
 	fullName: portfolio.fullName.trim(),
 	headline: portfolio.headline.trim(),
 	location: portfolio.location.trim(),
-	experienceSummary: portfolio.experienceSummary.trim(),
+	experienceSummary: clampPortfolioExperienceSummary(
+		portfolio.experienceSummary.trim(),
+	),
 	education: portfolio.education.trim(),
 	availability: portfolio.availability.trim(),
 	email: portfolio.email.trim(),

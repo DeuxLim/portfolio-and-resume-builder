@@ -6,6 +6,7 @@ import {
 	buildStarterPortfolio,
 	defaultPortfolioLayout,
 } from "../../shared/defaults/portfolio.js";
+import { clampPortfolioExperienceSummary } from "../../shared/constants/portfolio.js";
 import type {
 	EditablePortfolio,
 	HeaderAction,
@@ -168,8 +169,8 @@ const sanitizeEditablePortfolio = (
 		fullName: String(input.fullName ?? fallback.fullName),
 		headline: String(input.headline ?? fallback.headline),
 		location: String(input.location ?? fallback.location),
-		experienceSummary: String(
-			input.experienceSummary ?? fallback.experienceSummary,
+		experienceSummary: clampPortfolioExperienceSummary(
+			String(input.experienceSummary ?? fallback.experienceSummary),
 		),
 		education: String(input.education ?? fallback.education),
 		availability: String(input.availability ?? fallback.availability),

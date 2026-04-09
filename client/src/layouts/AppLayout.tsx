@@ -1,26 +1,34 @@
 import { Outlet, Link, useLocation } from "react-router";
 import { useNavigate } from "react-router";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, apiBaseUrl } from "@/lib/axios.client";
 import { sessionQueryKey } from "@/hooks/useSession";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import ThemeToggleButton from "@/components/ThemeToggleButton";
 import { useSession } from "@/hooks/useSession";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Menu, X } from "lucide-react";
-
-type OpenMenu = "portfolio" | "resume" | null;
+import {
+	BookOpen,
+	ExternalLink,
+	FileDown,
+	FileText,
+	LayoutDashboard,
+	LogOut,
+	Menu,
+	PanelsTopLeft,
+	Sparkles,
+	UserRoundPen,
+} from "lucide-react";
 
 export default function AppLayout() {
 	const location = useLocation();
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
 	const sessionQuery = useSession();
-	const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
 	const [mobileNavOpen, setMobileNavOpen] = useState(false);
-	const navMenusRef = useRef<HTMLDivElement | null>(null);
 	const isAuthed = Boolean(sessionQuery.data?.user);
 	const username =
 		sessionQuery.data?.portfolioSlug ?? sessionQuery.data?.user?.username;
@@ -30,6 +38,7 @@ export default function AppLayout() {
 	const publicResumePdfHref = username
 		? `${apiBaseUrl}/resumes/${encodeURIComponent(username)}/pdf?download=1`
 		: "";
+
 	const logoutMutation = useMutation({
 		mutationFn: async () => api.post("/auth/logout"),
 		onSuccess: async () => {
@@ -38,10 +47,8 @@ export default function AppLayout() {
 		},
 	});
 
-	const navActiveClass =
-		"bg-emerald-500/12 text-emerald-700 ring-1 ring-emerald-500/35 dark:text-emerald-300";
-	const navMenuItemActiveClass =
-		"bg-emerald-600 text-white hover:bg-emerald-600 dark:bg-emerald-500 dark:text-emerald-950 dark:hover:bg-emerald-500";
+	const navActiveClass = "bg-primary text-primary-foreground shadow-sm";
+
 	const isDashboardActive = location.pathname === "/dashboard";
 	const isEditorActive =
 		location.pathname.startsWith("/dashboard/edit") ||
@@ -51,409 +58,317 @@ export default function AppLayout() {
 	const isSampleActive = location.pathname.startsWith("/sample");
 	const isGuideActive = location.pathname.startsWith("/guide");
 
+	const desktopAuthedLinks = useMemo(
+		() => [
+			{
+				to: "/dashboard",
+				label: "Dashboard",
+				active: isDashboardActive,
+			},
+			{
+				to: "/dashboard/edit",
+				label: "Portfolio Builder",
+				active: isEditorActive,
+			},
+			{
+				to: "/dashboard/resume",
+				label: "Resume Builder",
+				active: isResumeBuilderActive,
+			},
+			{
+				to: "/guide",
+				label: "Guide",
+				active: isGuideActive,
+			},
+		],
+		[isDashboardActive, isEditorActive, isGuideActive, isResumeBuilderActive],
+	);
+
+	const desktopGuestLinks = useMemo(
+		() => [
+			{
+				to: "/",
+				label: "Home",
+				active: isHomeActive,
+			},
+			{
+				to: "/sample",
+				label: "Sample",
+				active: isSampleActive,
+			},
+			{
+				to: "/guide",
+				label: "Guide",
+				active: isGuideActive,
+			},
+		],
+		[isGuideActive, isHomeActive, isSampleActive],
+	);
+
+	const mobileDockItems = isAuthed
+		? [
+				{
+					to: "/dashboard",
+					label: "Dashboard",
+					icon: LayoutDashboard,
+					active: isDashboardActive,
+				},
+				{
+					to: "/dashboard/edit",
+					label: "Portfolio",
+					icon: PanelsTopLeft,
+					active: isEditorActive,
+				},
+				{
+					to: "/dashboard/resume",
+					label: "Resume",
+					icon: FileText,
+					active: isResumeBuilderActive,
+				},
+				{
+					to: "/guide",
+					label: "Guide",
+					icon: BookOpen,
+					active: isGuideActive,
+				},
+			]
+		: [
+				{
+					to: "/",
+					label: "Home",
+					icon: Sparkles,
+					active: isHomeActive,
+				},
+				{
+					to: "/sample",
+					label: "Sample",
+					icon: PanelsTopLeft,
+					active: isSampleActive,
+				},
+				{
+					to: "/guide",
+					label: "Guide",
+					icon: BookOpen,
+					active: isGuideActive,
+				},
+				{
+					to: "/login",
+					label: "Login",
+					icon: UserRoundPen,
+					active: location.pathname.startsWith("/login"),
+				},
+			];
+
 	useEffect(() => {
-		const onPointerDown = (event: PointerEvent) => {
-			if (!navMenusRef.current?.contains(event.target as Node)) {
-				setOpenMenu(null);
-			}
-		};
-
-		const onEscape = (event: KeyboardEvent) => {
-			if (event.key === "Escape") {
-				setOpenMenu(null);
-			}
-		};
-
-		document.addEventListener("pointerdown", onPointerDown);
-		document.addEventListener("keydown", onEscape);
-
-		return () => {
-			document.removeEventListener("pointerdown", onPointerDown);
-			document.removeEventListener("keydown", onEscape);
-		};
-	}, []);
-
-	useEffect(() => {
-		setOpenMenu(null);
 		setMobileNavOpen(false);
 	}, [location.pathname]);
 
+	const shellWidthClass =
+		location.pathname.startsWith("/dashboard") || location.pathname.startsWith("/guide")
+		? "max-w-[118rem]"
+		: "max-w-7xl";
+
 	return (
-		<div className="app-shell relative min-h-dvh bg-[radial-gradient(circle_at_top_right,#0ea5e91f,transparent_40%),radial-gradient(circle_at_top_left,#22c55e14,transparent_35%)] bg-cover bg-center">
-			<div className="pointer-events-none absolute inset-0 opacity-70">
-				<div className="absolute -top-32 -left-24 h-72 w-72 rounded-full bg-sky-500/10 blur-3xl" />
-				<div className="absolute top-24 -right-20 h-72 w-72 rounded-full bg-emerald-500/10 blur-3xl" />
-			</div>
-
-			<div className="relative mx-auto max-w-6xl px-3 pt-3 pb-8 sm:px-4 sm:pt-5 sm:pb-10 md:pt-6">
-				<header className="mb-5 rounded-2xl bg-background/70 p-3 sm:p-4 backdrop-blur supports-[backdrop-filter]:bg-background/55">
-					<div className="flex items-center gap-2 sm:hidden">
-						<Link
-							to="/"
-							className="inline-flex min-w-0 flex-1 items-center rounded-md bg-muted/35 px-3 py-2 text-[11px] font-semibold tracking-[0.08em] text-foreground/90 transition-colors hover:bg-muted/55 sm:text-xs"
-						>
-							<span className="truncate">Resume-style Web Dev Portfolio Generator</span>
-						</Link>
-						<button
-							type="button"
-							className={cn(
-								buttonVariants({ size: "sm", variant: "ghost" }),
-								"sm:hidden",
-							)}
-							aria-label={mobileNavOpen ? "Close navigation menu" : "Open navigation menu"}
-							aria-expanded={mobileNavOpen}
-							onClick={() => setMobileNavOpen((current) => !current)}
-						>
-							{mobileNavOpen ? <X className="size-4" /> : <Menu className="size-4" />}
-						</button>
-					</div>
-
-					<div className="hidden items-center gap-3 sm:flex">
-						<Link
-							to="/"
-							className="inline-flex min-w-0 shrink-0 items-center rounded-md bg-muted/35 px-3 py-2 text-[11px] font-semibold tracking-[0.08em] text-foreground/90 transition-colors hover:bg-muted/55 sm:max-w-[20rem] sm:text-xs lg:max-w-none"
-						>
-							<span className="truncate">Resume-style Web Dev Portfolio Generator</span>
-						</Link>
-						{isAuthed ? (
-							<div ref={navMenusRef} className="flex min-w-0 flex-1 items-center gap-1.5">
-								<Link
-									to="/dashboard"
-									className={cn(
-										buttonVariants({ size: "sm", variant: "ghost" }),
-										isDashboardActive && navActiveClass,
-									)}
-									onClick={() => setOpenMenu(null)}
-								>
-									Dashboard
-								</Link>
-								<Link
-									to="/guide"
-									className={cn(
-										buttonVariants({ size: "sm", variant: "ghost" }),
-										isGuideActive && navActiveClass,
-									)}
-									onClick={() => setOpenMenu(null)}
-								>
-									User guide
-								</Link>
-
-								<div className="group relative">
-									<button
-										type="button"
-										className={cn(
-											buttonVariants({ size: "sm", variant: "ghost" }),
-											"cursor-pointer",
-											isEditorActive && navActiveClass,
-											openMenu === "portfolio" && "bg-accent text-accent-foreground",
-										)}
-										aria-expanded={openMenu === "portfolio"}
-										aria-haspopup="menu"
-										onClick={() =>
-											setOpenMenu((current) => (current === "portfolio" ? null : "portfolio"))
-										}
-									>
-										Portfolio builder
-									</button>
-									{openMenu === "portfolio" ? (
-										<div
-											className="absolute left-0 top-[calc(100%+0.35rem)] z-50 min-w-52 rounded-xl border border-border/90 bg-popover p-1.5 text-popover-foreground opacity-100 shadow-2xl ring-1 ring-border/60"
-											role="menu"
-										>
-											<div className="flex flex-col gap-1">
-												<Link
-													to="/dashboard/edit"
-													className={cn(
-														buttonVariants({ size: "sm", variant: "ghost" }),
-														"justify-start",
-														isEditorActive && navMenuItemActiveClass,
-													)}
-													role="menuitem"
-													onClick={() => setOpenMenu(null)}
-												>
-													Edit portfolio
-												</Link>
-												<Link
-													to="/dashboard?newVersion=1"
-													className={cn(
-														buttonVariants({ size: "sm", variant: "ghost" }),
-														"justify-start",
-													)}
-													role="menuitem"
-													onClick={() => setOpenMenu(null)}
-												>
-													New version
-												</Link>
-												{publicPortfolioPath ? (
-													<Link
-														to={publicPortfolioPath}
-														target="_blank"
-														rel="noopener noreferrer"
-														className={cn(
-															buttonVariants({ size: "sm", variant: "ghost" }),
-															"justify-start",
-															location.pathname === publicPortfolioPath &&
-																navMenuItemActiveClass,
-														)}
-														role="menuitem"
-														onClick={() => setOpenMenu(null)}
-													>
-														My portfolio
-													</Link>
-												) : null}
-											</div>
-										</div>
-									) : null}
+		<div className="app-shell app-ui-shell min-h-dvh pb-24 md:pb-0">
+			<div className={cn("relative mx-auto w-full px-3 pt-4 pb-12 sm:px-6 sm:pt-6", shellWidthClass)}>
+				<header className="sticky top-3 z-40 mb-6 sm:mb-8">
+					<div className="v2-shell-header px-3 py-3 sm:px-4">
+						<div className="flex items-center gap-2 sm:gap-3">
+							<Link
+								to="/"
+								className="min-w-0 flex-1 px-1 py-1 transition-opacity hover:opacity-80 sm:flex-none"
+							>
+								<div className="truncate text-[1rem] font-semibold tracking-[0.03em] text-foreground/95">
+									Folio
 								</div>
+							</Link>
 
-								<div className="group relative">
-									<button
-										type="button"
-										className={cn(
-											buttonVariants({ size: "sm", variant: "ghost" }),
-											"cursor-pointer",
-											isResumeBuilderActive && navActiveClass,
-											openMenu === "resume" && "bg-accent text-accent-foreground",
-										)}
-										aria-expanded={openMenu === "resume"}
-										aria-haspopup="menu"
-										onClick={() =>
-											setOpenMenu((current) => (current === "resume" ? null : "resume"))
-										}
-									>
-										Resume builder
-									</button>
-									{openMenu === "resume" ? (
-										<div
-											className="absolute left-0 top-[calc(100%+0.35rem)] z-50 min-w-52 rounded-xl border border-border/90 bg-popover p-1.5 text-popover-foreground opacity-100 shadow-2xl ring-1 ring-border/60"
-											role="menu"
+							<nav className="hidden min-w-0 flex-1 items-center justify-center gap-3 md:flex">
+								<div className="flex h-9 items-center gap-1.5">
+									{(isAuthed ? desktopAuthedLinks : desktopGuestLinks).map((entry) => (
+										<Link
+											key={entry.to}
+											to={entry.to}
+											className={cn(
+												buttonVariants({ variant: "ghost", size: "sm" }),
+												"rounded-full",
+												entry.active && navActiveClass,
+											)}
 										>
-											<div className="flex flex-col gap-1">
-												<Link
-													to="/dashboard/resume"
-													className={cn(
-														buttonVariants({ size: "sm", variant: "ghost" }),
-														"justify-start",
-														isResumeBuilderActive && navMenuItemActiveClass,
-													)}
-													role="menuitem"
-													onClick={() => setOpenMenu(null)}
-												>
-													Open resume builder
-												</Link>
-												<a
-													href={resumePdfHref}
-													target="_blank"
-													rel="noopener noreferrer"
-													className={cn(
-														buttonVariants({ size: "sm", variant: "ghost" }),
-														"justify-start",
-													)}
-													role="menuitem"
-													onClick={() => setOpenMenu(null)}
-												>
-													Preview PDF
-												</a>
-												<a
-													href={resumePdfDownloadHref}
-													target="_blank"
-													rel="noopener noreferrer"
-													className={cn(
-														buttonVariants({ size: "sm", variant: "ghost" }),
-														"justify-start",
-													)}
-													role="menuitem"
-													onClick={() => setOpenMenu(null)}
-												>
-													Download PDF
-												</a>
-												{publicResumePdfHref ? (
-													<a
-														href={publicResumePdfHref}
-														target="_blank"
-														rel="noopener noreferrer"
-														className={cn(
-															buttonVariants({ size: "sm", variant: "ghost" }),
-															"justify-start",
-														)}
-														role="menuitem"
-														onClick={() => setOpenMenu(null)}
-													>
-														Public resume PDF
-													</a>
-												) : null}
-											</div>
-										</div>
-									) : null}
-								</div>
-								<button
-									type="button"
-									className={buttonVariants({ size: "sm", variant: "ghost" })}
-									onClick={() => logoutMutation.mutate()}
-									disabled={logoutMutation.isPending}
-								>
-									{logoutMutation.isPending ? "Logging out..." : "Log out"}
-								</button>
-							</div>
-						) : (
-							<div className="flex min-w-0 flex-1 items-center gap-2 px-1 lg:gap-4">
-								<Link
-									to="/"
-									className={cn(
-										buttonVariants({ size: "sm", variant: "ghost" }),
-										isHomeActive && navActiveClass,
-									)}
-								>
-									Home
-								</Link>
-								<Link
-									to="/sample"
-									className={cn(
-										buttonVariants({ size: "sm", variant: "ghost" }),
-										isSampleActive && navActiveClass,
-									)}
-								>
-									Sample output
-								</Link>
-								<Link
-									to="/guide"
-									className={cn(
-										buttonVariants({ size: "sm", variant: "ghost" }),
-										isGuideActive && navActiveClass,
-									)}
-								>
-									User guide
-								</Link>
-								<Link
-									to="/login"
-									className={cn(buttonVariants({ size: "sm", variant: "ghost" }))}
-								>
-									Log in
-								</Link>
-								<Link
-									to="/signup"
-									className={cn(buttonVariants({ size: "sm" }))}
-								>
-									Create account
-								</Link>
-							</div>
-						)}
-						<div className="shrink-0">
-							<ThemeToggleButton />
-						</div>
-					</div>
-
-					<Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-						<SheetContent side="right" className="w-[88vw] max-w-sm p-0 sm:hidden">
-							<SheetHeader>
-								<SheetTitle className="sr-only">Navigation menu</SheetTitle>
-							</SheetHeader>
-							<div className="flex flex-col gap-2 px-4 pb-4">
-								<div className="flex items-center justify-between pb-1">
-									<div className="text-xs font-medium uppercase tracking-[0.12em] text-muted-foreground">
-										Menu
-									</div>
-									<ThemeToggleButton />
+											{entry.label}
+										</Link>
+									))}
 								</div>
 								{isAuthed ? (
 									<>
-										<Link
-											to="/dashboard"
-											className={cn(
-												buttonVariants({ size: "sm", variant: "ghost" }),
-												"w-full justify-start",
-												isDashboardActive && navActiveClass,
-											)}
-											onClick={() => setMobileNavOpen(false)}
-										>
-											Dashboard
-										</Link>
-										<Link
-											to="/guide"
-											className={cn(
-												buttonVariants({ size: "sm", variant: "ghost" }),
-												"w-full justify-start",
-												isGuideActive && navActiveClass,
-											)}
-											onClick={() => setMobileNavOpen(false)}
-										>
-											User guide
-										</Link>
-										<div className="px-2 pt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-											Portfolio
+										<Separator orientation="vertical" className="h-9" />
+										<div className="flex h-9 items-center gap-2">
+											{publicPortfolioPath ? (
+												<Link
+													to={publicPortfolioPath}
+													target="_blank"
+													rel="noopener noreferrer"
+													className={cn(
+														buttonVariants({ variant: "outline", size: "sm" }),
+														"rounded-full",
+													)}
+												>
+													Live Site
+													<ExternalLink className="size-3.5" />
+												</Link>
+											) : null}
+											<a
+												href={resumePdfDownloadHref}
+												target="_blank"
+												rel="noopener noreferrer"
+												className={cn(
+													buttonVariants({ variant: "outline", size: "sm" }),
+													"rounded-full",
+												)}
+											>
+												Resume PDF
+												<FileDown className="size-3.5" />
+											</a>
 										</div>
+									</>
+								) : null}
+							</nav>
+
+							<div className="flex items-center gap-2">
+								{!isAuthed ? (
+									<div className="hidden items-center gap-2 md:flex">
 										<Link
-											to="/dashboard/edit"
-											className={cn(
-												buttonVariants({ size: "sm", variant: "ghost" }),
-												"w-full justify-start",
-												isEditorActive && navActiveClass,
-											)}
-											onClick={() => setMobileNavOpen(false)}
+											to="/login"
+											className={buttonVariants({ variant: "ghost", size: "sm" })}
 										>
-											Edit portfolio
+											Log in
 										</Link>
-										<Link
-											to="/dashboard?newVersion=1"
-											className={cn(
-												buttonVariants({ size: "sm", variant: "ghost" }),
-												"w-full justify-start",
-											)}
-											onClick={() => setMobileNavOpen(false)}
-										>
-											New version
+										<Link to="/signup" className={buttonVariants({ size: "sm" })}>
+											Create account
 										</Link>
+									</div>
+								) : null}
+
+								<div className="hidden sm:block">
+									<ThemeToggleButton />
+								</div>
+								<Button
+									type="button"
+									size="icon-sm"
+									variant="outline"
+									onClick={() => setMobileNavOpen(true)}
+									aria-label="Open menu"
+								>
+									<Menu className="size-4" />
+								</Button>
+							</div>
+						</div>
+					</div>
+				</header>
+
+				<Outlet />
+			</div>
+
+			<div className="fixed inset-x-3 bottom-3 z-40 md:hidden">
+				<div className="v2-shell-header grid grid-cols-5 gap-1 p-1.5">
+					{mobileDockItems.map((item) => (
+						<Link
+							key={item.to}
+							to={item.to}
+							className={cn(
+								"flex flex-col items-center justify-center gap-0.5 rounded-2xl px-2 py-2 text-[0.64rem] font-semibold tracking-[0.04em] text-muted-foreground transition-colors",
+								item.active && "bg-primary text-primary-foreground",
+							)}
+						>
+							<item.icon className="size-4" />
+							{item.label}
+						</Link>
+					))}
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						className="h-auto flex-col gap-0.5 rounded-2xl px-2 py-2 text-[0.64rem] font-semibold tracking-[0.04em] text-muted-foreground"
+						onClick={() => setMobileNavOpen(true)}
+					>
+						<Menu className="size-4" />
+						Menu
+					</Button>
+				</div>
+			</div>
+
+			<Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+				<SheetContent side="right" className="w-[88vw] max-w-md p-0">
+					<SheetHeader className="border-b border-border/60 px-5 py-4">
+						<SheetTitle className="text-base">Workspace Menu</SheetTitle>
+					</SheetHeader>
+
+					<div className="flex h-full flex-col gap-6 overflow-y-auto px-5 py-5">
+						<div className="space-y-3">
+							<div className="text-xs font-semibold tracking-[0.16em] text-muted-foreground">
+								NAVIGATION
+							</div>
+							<div className="space-y-3">
+								{(isAuthed ? desktopAuthedLinks : desktopGuestLinks).map((entry) => (
+									<Link
+										key={entry.to}
+										to={entry.to}
+										className={cn(
+											buttonVariants({ variant: "outline" }),
+											"w-full justify-start",
+											entry.active && "border-primary/55 bg-primary/12 text-primary",
+										)}
+									>
+										{entry.label}
+									</Link>
+								))}
+							</div>
+						</div>
+
+						{isAuthed ? (
+							<>
+								<div className="space-y-3">
+									<div className="text-xs font-semibold tracking-[0.16em] text-muted-foreground">
+										PUBLISHING
+									</div>
+									<div className="space-y-3">
 										{publicPortfolioPath ? (
 											<Link
 												to={publicPortfolioPath}
 												target="_blank"
 												rel="noopener noreferrer"
 												className={cn(
-													buttonVariants({ size: "sm", variant: "ghost" }),
+													buttonVariants({ variant: "outline" }),
 													"w-full justify-start",
 												)}
-												onClick={() => setMobileNavOpen(false)}
 											>
-												My portfolio
+												<ExternalLink className="size-4" />
+												Open Live Portfolio
 											</Link>
 										) : null}
-										<div className="px-2 pt-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
-											Resume
-										</div>
-										<Link
-											to="/dashboard/resume"
-											className={cn(
-												buttonVariants({ size: "sm", variant: "ghost" }),
-												"w-full justify-start",
-												isResumeBuilderActive && navActiveClass,
-											)}
-											onClick={() => setMobileNavOpen(false)}
-										>
-											Open resume builder
-										</Link>
 										<a
 											href={resumePdfHref}
 											target="_blank"
 											rel="noopener noreferrer"
 											className={cn(
-												buttonVariants({ size: "sm", variant: "ghost" }),
+												buttonVariants({ variant: "outline" }),
 												"w-full justify-start",
 											)}
-											onClick={() => setMobileNavOpen(false)}
 										>
-											Preview PDF
+											<FileText className="size-4" />
+											Preview Resume PDF
 										</a>
 										<a
 											href={resumePdfDownloadHref}
 											target="_blank"
 											rel="noopener noreferrer"
 											className={cn(
-												buttonVariants({ size: "sm", variant: "ghost" }),
+												buttonVariants({ variant: "outline" }),
 												"w-full justify-start",
 											)}
-											onClick={() => setMobileNavOpen(false)}
 										>
-											Download PDF
+											<FileDown className="size-4" />
+											Download Resume PDF
 										</a>
 										{publicResumePdfHref ? (
 											<a
@@ -461,90 +376,49 @@ export default function AppLayout() {
 												target="_blank"
 												rel="noopener noreferrer"
 												className={cn(
-													buttonVariants({ size: "sm", variant: "ghost" }),
+													buttonVariants({ variant: "outline" }),
 													"w-full justify-start",
 												)}
-												onClick={() => setMobileNavOpen(false)}
 											>
-												Public resume PDF
+												<ExternalLink className="size-4" />
+												Public Resume PDF
 											</a>
 										) : null}
-										<button
-											type="button"
-											className={cn(
-												buttonVariants({ size: "sm", variant: "ghost" }),
-												"w-full justify-start",
-											)}
-											onClick={() => {
-												setMobileNavOpen(false);
-												logoutMutation.mutate();
-											}}
-											disabled={logoutMutation.isPending}
-										>
-											{logoutMutation.isPending ? "Logging out..." : "Log out"}
-										</button>
-									</>
-								) : (
-									<>
-										<Link
-											to="/"
-											className={cn(
-												buttonVariants({ size: "sm", variant: "ghost" }),
-												"w-full justify-start",
-												isHomeActive && navActiveClass,
-											)}
-											onClick={() => setMobileNavOpen(false)}
-										>
-											Home
-										</Link>
-										<Link
-											to="/sample"
-											className={cn(
-												buttonVariants({ size: "sm", variant: "ghost" }),
-												"w-full justify-start",
-												isSampleActive && navActiveClass,
-											)}
-											onClick={() => setMobileNavOpen(false)}
-										>
-											Sample output
-										</Link>
-										<Link
-											to="/guide"
-											className={cn(
-												buttonVariants({ size: "sm", variant: "ghost" }),
-												"w-full justify-start",
-												isGuideActive && navActiveClass,
-											)}
-											onClick={() => setMobileNavOpen(false)}
-										>
-											User guide
-										</Link>
-										<Link
-											to="/login"
-											className={cn(
-												buttonVariants({ size: "sm", variant: "ghost" }),
-												"w-full justify-start",
-											)}
-											onClick={() => setMobileNavOpen(false)}
-										>
-											Log in
-										</Link>
-										<Link
-											to="/signup"
-											className={cn(buttonVariants({ size: "sm" }), "w-full justify-start")}
-											onClick={() => setMobileNavOpen(false)}
-										>
-											Create account
-										</Link>
-									</>
-								)}
-							</div>
-						</SheetContent>
-					</Sheet>
-				</header>
+									</div>
+								</div>
 
-				<Outlet />
-			</div>
+								<div className="mt-auto flex items-center justify-between gap-3 pt-2">
+									<Button
+										type="button"
+										variant="ghost"
+										className="justify-start px-0 text-destructive hover:text-destructive"
+										onClick={() => logoutMutation.mutate()}
+										disabled={logoutMutation.isPending}
+									>
+										<LogOut className="size-4" />
+										{logoutMutation.isPending ? "Logging out..." : "Log out"}
+									</Button>
+									<ThemeToggleButton />
+								</div>
+							</>
+						) : (
+							<div className="mt-auto space-y-3 pt-2">
+								<div className="flex flex-col gap-2">
+									<Link to="/login" className={buttonVariants({ variant: "outline" })}>
+										Log in
+									</Link>
+									<Link to="/signup" className={buttonVariants({ size: "default" })}>
+										Create account
+									</Link>
+								</div>
+								<div className="flex justify-end">
+									<ThemeToggleButton />
+								</div>
+							</div>
+						)}
+					</div>
+				</SheetContent>
+			</Sheet>
 		</div>
 	);
 }
